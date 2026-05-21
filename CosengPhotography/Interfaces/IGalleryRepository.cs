@@ -1,4 +1,4 @@
-﻿using CosengPhotography.Dto;
+﻿using CosengPhotography.Shared.Dtos;
 
 namespace CosengPhotography.Interfaces
    {

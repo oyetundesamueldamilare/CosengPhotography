@@ -1,7 +1,4 @@
-﻿using Azure.Storage.Sas;
-using Azure.Storage.Blobs;
-using CosengPhotography.Interfaces;
-using Azure.Storage;
+﻿using CosengPhotography.Interfaces;
 
 
 namespace CosengPhotography.Services

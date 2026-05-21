@@ -1,6 +1,6 @@
-﻿
-    using CosengPhotography.Dto;
-    using System.Threading.Tasks;
+﻿using CosengPhotography.Shared.Dtos;
+
+
 
     namespace CosengPhotography.Interfaces
     {

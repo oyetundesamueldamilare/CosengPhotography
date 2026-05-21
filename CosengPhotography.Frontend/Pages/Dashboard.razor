@@ -1,0 +1,245 @@
+﻿@page "/dashboard"
+@using CosengPhotography.Shared.Dtos
+@using CosengPhotography.Frontend.Services
+@inject GalleryApiService ApiService
+@inject NavigationManager Navigation
+
+<div class="container mt-5" style="max-width: 800px; font-family: Arial, sans-serif;">
+
+    @if (!string.IsNullOrEmpty(StatusMessage))
+    {
+        <div class="alert @(IsError ? "alert-danger" : "alert-success") mb-4 p-3" style="border-radius: 4px;">
+            @StatusMessage
+        </div>
+    }
+
+    @if (!IsAuthenticated)
+    {
+        <div class="mx-auto card p-5 shadow-sm" style="max-width: 450px; border: 1px solid #eee; margin-top: 5%;">
+            <div class="text-center mb-4">
+                <h3 style="font-weight: bold; color: #000;">Photographer Portal</h3>
+                <p class="text-muted small">Sign in to manage galleries and dispatch client assets</p>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label" style="font-weight: 600;">Email Address</label>
+                <input type="email" class="form-control" @bind="LoginEmail" placeholder="admin@cosengphotography.com" />
+            </div>
+
+            <div class="mb-4">
+                <label class="form-label" style="font-weight: 600;">Security Password</label>
+                <input type="password" class="form-control" @bind="LoginPassword" placeholder="••••••••" />
+            </div>
+
+            <button class="btn btn-dark w-100 p-2" @onclick="ExecuteLoginAsync" disabled="@IsProcessing">
+                @if (IsProcessing)
+                {
+                    <span>Authenticating Identity...</span>
+                }
+                else
+                {
+                    <span>Secure Sign In</span>
+                }
+            </button>
+        </div>
+    }
+    else
+    {
+        <div class="d-flex justify-content-between align-items-center mb-4" style="border-bottom: 2px solid #000; padding-bottom: 10px;">
+            <h2 style="font-weight: bold; margin: 0;">Photographer Dashboard</h2>
+            <button class="btn btn-sm btn-outline-danger" @onclick="LogOut">Sign Out</button>
+        </div>
+
+        <div class="card p-4 mb-4 shadow-sm" style="border: 1px solid #eee;">
+            <h4 class="mb-3" style="color: #333;">Initialize New Gallery Container</h4>
+
+            <div class="mb-3">
+                <label class="form-label" style="font-weight: 600;">Event / Project Name</label>
+                <input type="text" class="form-control" @bind="NewGallery.EventName" placeholder="e.g., John and Jane Wedding" />
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label" style="font-weight: 600;">Client Target Email Address</label>
+                <input type="email" class="form-control" @bind="NewGallery.CustomerEmail" placeholder="client@example.com" />
+            </div>
+
+            <button class="btn btn-dark w-100 p-2" @onclick="CreateNewGalleryAsync" disabled="@IsProcessing">
+                @if (IsProcessing)
+                {
+                    <span>Processing Transaction...</span>
+                }
+                else
+                {
+                    <span>Generate Secure Gallery Footprint</span>
+                }
+            </button>
+        </div>
+
+        @if (CreatedGalleryId.HasValue)
+        {
+            <div class="card p-4 shadow-sm animate-fade-in" style="border: 2px dashed #000; background-color: #fafafa;">
+                <h4 class="mb-2" style="color: #000; font-weight: bold;">Step 2: Upload Raw Photo Assets</h4>
+                <p class="text-muted small">Target Gallery ID: @CreatedGalleryId.Value</p>
+
+                <div class="my-4 text-center p-4" style="background: #fff; border: 1px dashed #ccc; border-radius: 4px;">
+                    <InputFile OnChange="HandleFileSelection" multiple class="form-control" id="fileUploadControl" />
+                    <div class="text-muted small mt-2">Maximum recommended size per image: 15MB</div>
+                </div>
+
+                @if (SelectedFiles.Any())
+                {
+                    <div class="mb-3">
+                        <strong class="d-block mb-2">Staged Queue (@SelectedFiles.Count files detected):</strong>
+                        <ul class="list-group" style="max-height: 200px; overflow-y: auto; font-size: 13px;">
+                            @foreach (var file in SelectedFiles)
+                            {
+                                <li class="list-group-item d-flex justify-content-between align-content-center">
+                                    <span>📄 @file.Name</span>
+                                    <span class="badge bg-secondary">@((file.Size / 1024 / 1024).ToString("F2")) MB</span>
+                                </li>
+                            }
+                        </ul>
+                    </div>
+
+                    <button class="btn btn-success w-100 p-2" @onclick="ExecuteBatchUploadAsync" disabled="@IsUploading">
+                        @if (IsUploading)
+                        {
+                            <span>Uploading Streams to Server...</span>
+                        }
+                        else
+                        {
+                            <span>🚀 Dispatch Streams & Fire Client Notification Email</span>
+                        }
+                    </button>
+                }
+            </div>
+        }
+    }
+</div>
+
+@code {
+    // Authentication State Trackers
+    private bool IsAuthenticated { get; set; } = false;
+    private string LoginEmail { get; set; } = string.Empty;
+    private string LoginPassword { get; set; } = string.Empty;
+
+    // Gallery Form Data Models
+    private GalleryCreateDto NewGallery { get; set; } = new();
+    private List<IBrowserFile> SelectedFiles { get; set; } = new();
+
+    private Guid? CreatedGalleryId { get; set; }
+    private bool IsProcessing { get; set; }
+    private bool IsUploading { get; set; }
+
+    private string StatusMessage { get; set; } = string.Empty;
+    private bool IsError { get; set; }
+
+    private async Task ExecuteLoginAsync()
+    {
+        if (string.IsNullOrWhiteSpace(LoginEmail) || string.IsNullOrWhiteSpace(LoginPassword))
+        {
+            SetStatus("Please provide both your email and security password.", true);
+            return;
+        }
+
+        try
+        {
+            IsProcessing = true;
+            ClearStatus();
+
+            // FUTURE WORK: Wire up your actual identity endpoint here.
+            // For instant testing right now, we can use a secure hardcoded fallback check:
+            if (LoginEmail == "admin@cosengphotography.com" && LoginPassword == "CosengSecure2026!")
+            {
+                IsAuthenticated = true;
+                SetStatus("Welcome back! Authentication sequence verified.", false);
+            }
+            else
+            {
+                SetStatus("Invalid credentials. Please verify your password and try again.", true);
+            }
+        }
+        catch (Exception ex)
+        {
+            SetStatus($"Authentication Error: {ex.Message}", true);
+        }
+        finally
+        {
+            IsProcessing = false;
+        }
+    }
+
+    private void LogOut()
+    {
+        IsAuthenticated = false;
+        LoginPassword = string.Empty;
+        ClearStatus();
+    }
+
+    private async Task CreateNewGalleryAsync()
+    {
+        if (string.IsNullOrWhiteSpace(NewGallery.EventName) || string.IsNullOrWhiteSpace(NewGallery.CustomerEmail))
+        {
+            SetStatus("Validation Failure: All creation input fields must be provided.", true);
+            return;
+        }
+
+        try
+        {
+            IsProcessing = true;
+            ClearStatus();
+
+            var result = await ApiService.CreateGalleryAsync(NewGallery);
+            CreatedGalleryId = result.Id;
+            SetStatus($"Gallery footprint generated! Access PIN: {result.AccessPin}", false);
+        }
+        catch (Exception ex)
+        {
+            SetStatus($"Processing Fault: {ex.Message}", true);
+        }
+        finally
+        {
+            IsProcessing = false;
+        }
+    }
+
+    private void HandleFileSelection(InputFileChangeEventArgs e)
+    {
+        SelectedFiles = e.GetMultipleFiles(100).ToList();
+    }
+
+    private async Task ExecuteBatchUploadAsync()
+    {
+        if (!CreatedGalleryId.HasValue || !SelectedFiles.Any()) return;
+
+        try
+        {
+            IsUploading = true;
+            SetStatus("Uploading assets. Writing file streams directly to disk space...", false);
+
+            await ApiService.UploadPhotosAsync(CreatedGalleryId.Value, SelectedFiles);
+
+            SetStatus("Success! All photos uploaded and notification email sent.", false);
+
+            SelectedFiles.Clear();
+            NewGallery = new();
+            CreatedGalleryId = null;
+        }
+        catch (Exception ex)
+        {
+            SetStatus($"Streaming Failure: {ex.Message}", true);
+        }
+        finally
+        {
+            IsUploading = false;
+        }
+    }
+
+    private void SetStatus(string msg, bool isError)
+    {
+        StatusMessage = msg;
+        IsError = isError;
+    }
+
+    private void ClearStatus() => StatusMessage = string.Empty;
+}

@@ -1,5 +1,5 @@
 ﻿using CosengPhotography.Data;
-using CosengPhotography.Dto;
+using CosengPhotography.Shared.Dtos;
 using CosengPhotography.Interfaces;
 using CosengPhotography.Models;
 using Microsoft.EntityFrameworkCore;

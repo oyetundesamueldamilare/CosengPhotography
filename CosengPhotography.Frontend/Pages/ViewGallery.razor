@@ -1,0 +1,176 @@
+﻿@page "/view/{ShareId:guid}"
+@using CosengPhotography.Shared.Dtos
+@using CosengPhotography.Frontend.Services
+@inject GalleryApiService ApiService
+
+<div class="container mt-5" style="font-family: Arial, sans-serif;">
+
+    @if (IsLoading)
+    {
+        <div class="text-center my-5">
+            <div class="spinner-border text-dark" role="status"></div>
+            <p class="text-muted mt-2">Retrieving your secure photo collection...</p>
+        </div>
+    }
+    else if (!IsUnlocked)
+    {
+        <div class="mx-auto text-center card p-5 shadow-sm" style="max-width: 450px; border: 1px solid #eee; margin-top: 10%;">
+            <h3 class="mb-2" style="font-weight: bold; color: #000;">Protected Gallery</h3>
+            <p class="text-muted small mb-4">Please enter the 4-digit secure access PIN sent to your email to unlock these memories.</p>
+
+            <div class="mb-4">
+                <input type="password"
+                       class="form-control text-center tracking-widest fs-4 mx-auto"
+                       style="max-width: 200px; letter-spacing: 8px; font-weight: bold; border: 2px solid #000;"
+                       maxlength="4"
+                       @bind="EnteredPin"
+                       placeholder="••••" />
+            </div>
+
+            @if (!string.IsNullOrEmpty(ErrorMessage))
+            {
+                <div class="alert alert-danger p-2 small mb-3">@ErrorMessage</div>
+            }
+
+            <button class="btn btn-dark w-100 p-2" @onclick="VerifyAccessPin">Unlock Collection</button>
+        </div>
+    }
+    else if (ActiveGallery != null)
+    {
+        <div class="text-center mb-5 animate-fade-in">
+            <h1 style="font-weight: bold; letter-spacing: -1px; text-transform: uppercase;">@ActiveGallery.EventName</h1>
+            <p class="text-muted">Exclusively curated collection • @ActiveGallery.Photos?.Count assets preserved</p>
+            <hr style="max-width: 100px; border-top: 3px solid #000; margin: 20px auto;" />
+        </div>
+
+        @if (ActiveGallery.Photos == null || !ActiveGallery.Photos.Any())
+        {
+            <div class="text-center my-5 p-5 bg-light" style="border-radius: 4px;">
+                <p class="text-muted mb-0">The gallery space is prepared, but no photo streams have been written yet.</p>
+            </div>
+        }
+        else
+        {
+            <div class="row row-cols-1 row-cols-sm-2 row-cols-md-3 row-cols-lg-4 g-4 animate-fade-in">
+                @foreach (var photo in ActiveGallery.Photos)
+                {
+                    <div class="col">
+                        <div class="card h-100 border-0 shadow-sm position-relative overflow-hidden gallery-card">
+                            <img src="@photo.BlobUrl"
+                                 class="card-img-top img-fluid style-image"
+                                 alt="Gallery Asset"
+                                 loading="lazy"
+                                 style="object-fit: cover; height: 260px; background-color: #f7f7f7;" />
+
+                            <div class="card-body p-2 d-flex justify-content-between align-items-center bg-white">
+                                <span class="text-muted small text-truncate" style="max-width: 150px;">@photo.FileName</span>
+                                <button class="btn btn-sm btn-outline-dark px-3"
+                                        @onclick="() => TriggerDownloadAsync(photo.Id, photo.FileName)">
+                                    Download
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+    }
+</div>
+
+<style>
+    .tracking-widest {
+        letter-spacing: 0.5em;
+    }
+
+    .gallery-card {
+        transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+    }
+
+        .gallery-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.1) !important;
+        }
+
+    .animate-fade-in {
+        animation: fadeIn 0.6s ease-out forwards;
+    }
+
+    @@keyframes fadeIn {
+        from {
+            opacity: 0;
+            transform: translateY(10px);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+</style>
+
+@code {
+    [Parameter] public Guid ShareId { get; set; }
+
+    private GalleryDto? ActiveGallery { get; set; }
+    private string EnteredPin { get; set; } = string.Empty;
+    private string ErrorMessage { get; set; } = string.Empty;
+
+    private bool IsLoading { get; set; } = true;
+    private bool IsUnlocked { get; set; } = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            IsLoading = true;
+            ErrorMessage = string.Empty;
+
+            // Pre-fetch basic metadata package to ensure gallery exists
+            ActiveGallery = await ApiService.GetPublicGalleryAsync(ShareId);
+
+            if (ActiveGallery == null)
+            {
+                ErrorMessage = "The requested photo gallery configuration could not be loaded.";
+            }
+        }
+        catch (Exception)
+        {
+            ErrorMessage = "Unable to connect to the central authentication service registry.";
+        }
+        finally
+        {
+            IsLoading = false;
+        }
+    }
+
+    private void VerifyAccessPin()
+    {
+        if (ActiveGallery == null) return;
+
+        // Verify the customer input against the auto-generated hash field from your SQL DB
+        if (EnteredPin == ActiveGallery.AccessPin)
+        {
+            IsUnlocked = true;
+            ErrorMessage = string.Empty;
+        }
+        else
+        {
+            ErrorMessage = "Access Denied: The security entry PIN provided is invalid.";
+            EnteredPin = string.Empty;
+        }
+    }
+
+    private async Task TriggerDownloadAsync(int photoId, string fileName)
+    {
+        try
+        {
+            // Connects directly to the binary downstream engine inside your service layer
+            await ApiService.DownloadPhotoAsync(photoId, fileName);
+        }
+        catch (Exception)
+        {
+            // Fallback user alert warning handling if streaming breaks midway
+            Console.WriteLine("Streaming transaction dropped during file delivery operation.");
+        }
+    }
+}

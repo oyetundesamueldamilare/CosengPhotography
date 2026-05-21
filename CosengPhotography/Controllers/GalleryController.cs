@@ -1,4 +1,4 @@
-﻿using CosengPhotography.Dto;
+﻿using CosengPhotography.Shared.Dtos;
 using CosengPhotography.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;

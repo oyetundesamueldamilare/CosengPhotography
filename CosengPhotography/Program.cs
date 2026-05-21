@@ -84,6 +84,10 @@ builder.Services.AddAuthentication(options =>
 });
 
 // --- Custom Services ---
+// Bind the appsettings section directly to your new SmtpSettings POCO class
+builder.Services.Configure<SmtpSettings>(builder.Configuration.GetSection("SmtpSettings"));
+// Register your service wrapper
+builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<IBlobService, InMemoryBlobService>();
 builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
@@ -92,10 +96,22 @@ builder.Services.AddScoped<IGalleryRepository, GalleryRepository>();
 // --- CORS ---
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("AllowFrontend",
-        policy => policy.WithOrigins("https://yourfrontend.com") // tighten in production
-                        .AllowAnyMethod()
-                        .AllowAnyHeader());
+    options.AddPolicy("AllowFrontend", policy =>
+    {
+        if (builder.Environment.IsDevelopment())
+        {
+            // Update these to match your backend API's listening ports
+            policy.WithOrigins("https://localhost:7075", "http://localhost:5192")
+                  .AllowAnyMethod()
+                  .AllowAnyHeader();
+        }
+        else
+        {
+            policy.WithOrigins("https://yourfrontend.com")
+                  .AllowAnyMethod()
+                  .AllowAnyHeader();
+        }
+    });
 });
 
 var app = builder.Build();

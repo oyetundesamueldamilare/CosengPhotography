@@ -1,0 +1,15 @@
+[
+  {
+    "Name": "New Profile",
+    "Projects": [
+      {
+        "Path": "CosengPhotography\\CosengPhotography.csproj",
+        "Action": "Start"
+      },
+      {
+        "Path": "CosengPhotography.Frontend\\CosengPhotography.Frontend.csproj",
+        "Action": "Start"
+      }
+    ]
+  }
+]
