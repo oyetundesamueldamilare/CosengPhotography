@@ -14,32 +14,36 @@ namespace CosengPhotography.Frontend.Services
                 _http = http;
             }
 
-            #region Admin Operations (Photographer)
+        #region Admin Operations (Photographer)
 
-            /// <summary>
-            /// Sends a POST request to initialize a new gallery shell container
-            /// </summary>
-            public async Task<GalleryDto> CreateGalleryAsync(GalleryCreateDto dto)
+        /// <summary>
+        /// Sends a POST request to initialize a new gallery shell container
+        /// </summary>
+        public async Task<GalleryDto> CreateGalleryAsync(GalleryCreateDto dto)
+        {
+            // Send data to backend endpoint
+            var response = await _http.PostAsJsonAsync("api/galleries", dto);
+
+            // Check if the server actually returned a 200 OK or 201 Created status code
+            if (response.IsSuccessStatusCode)
             {
-                // Note: If you choose to reactivate [Authorize] guards later, 
-                // you will attach your Bearer tokens right here via default headers.
-
-                var response = await _http.PostAsJsonAsync("api/Gallery", dto);
-
-                if (!response.IsSuccessStatusCode)
-                {
-                    var error = await response.Content.ReadFromJsonAsync<Dictionary<string, string>>();
-                    throw new Exception(error?.GetValueOrDefault("Message") ?? "Failed to initialize gallery footprint.");
-                }
-
                 return await response.Content.ReadFromJsonAsync<GalleryDto>()
-                       ?? throw new InvalidOperationException("Failed to decode response payload.");
+                       ?? throw new Exception("The server returned a blank data payload.");
             }
 
-            /// <summary>
-            /// Collects UI-selected files and streams them smoothly using multipart/form-data boundary blocks
-            /// </summary>
-            public async Task UploadPhotosAsync(Guid galleryId, List<IBrowserFile> files)
+            // If we reach here, the server failed. Read the raw text response body directly!
+            var rawErrorContent = await response.Content.ReadAsStringAsync();
+
+            // Throw the real server error message to the UI instead of a JSON parsing crash
+            throw new Exception(!string.IsNullOrEmpty(rawErrorContent)
+                ? rawErrorContent
+                : $"Server responded with error status code: {response.StatusCode}");
+        }
+
+        /// <summary>
+        /// Collects UI-selected files and streams them smoothly using multipart/form-data boundary blocks
+        /// </summary>
+        public async Task UploadPhotosAsync(Guid galleryId, List<IBrowserFile> files)
             {
                 using var content = new MultipartFormDataContent();
 
@@ -96,5 +100,37 @@ namespace CosengPhotography.Frontend.Services
         }
 
         #endregion
+
+        public async Task<FrontendAuthResult> RegisterAsync(RegisterDto dto)
+        {
+            var response = await _http.PostAsJsonAsync("api/Auth/register", dto);
+
+            if (response.IsSuccessStatusCode)
+            {
+                return new FrontendAuthResult { IsSuccess = true };
+            }
+
+            // Read the bad request string descriptive message returned by your Identity logic
+            var errorContent = await response.Content.ReadAsStringAsync();
+            return new FrontendAuthResult { IsSuccess = false, ErrorMessage = errorContent };
+        }
+
+        public async Task<FrontendAuthResult> LoginAsync(LoginDto dto)
+        {
+            var response = await _http.PostAsJsonAsync("api/Auth/login", dto);
+
+            if (response.IsSuccessStatusCode)
+            {
+                // Deserialize the anonymous structure { Token = token } safely
+                var result = await response.Content.ReadFromJsonAsync<LoginResponse>();
+                return new FrontendAuthResult { IsSuccess = true, Token = result?.Token ?? string.Empty };
+            }
+
+            var errorContent = await response.Content.ReadAsStringAsync();
+            return new FrontendAuthResult { IsSuccess = false, ErrorMessage = !string.IsNullOrEmpty(errorContent) ? errorContent : "Invalid credentials." };
+        }
+
+        // Helper private class to decode the anonymous controller payload return
+        private class LoginResponse { public string Token { get; set; } = string.Empty; }
     }
-    }
+}

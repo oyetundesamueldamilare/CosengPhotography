@@ -32,7 +32,7 @@ namespace CosengPhotography.Controllers
             try
             {
                 var result = await _galleryRepository.CreateGalleryAsync(dto);
-                return CreatedAtAction(nameof(GetPublicGallery), new { shareId = result.Id }, result);
+                return StatusCode(201, result);
             }
             catch (Exception ex)
             {

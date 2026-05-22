@@ -101,7 +101,7 @@ builder.Services.AddCors(options =>
         if (builder.Environment.IsDevelopment())
         {
             // Update these to match your backend API's listening ports
-            policy.WithOrigins("https://localhost:7075", "http://localhost:5192")
+            policy.WithOrigins("https://localhost:7111", "http://localhost:5142")
                   .AllowAnyMethod()
                   .AllowAnyHeader();
         }
