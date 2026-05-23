@@ -1,0 +1,45 @@
+﻿@page "/about"
+
+<div class="container my-5 py-5 animate-fade-in" style="max-width: 700px; font-family: Arial, sans-serif;">
+    <span class="text-uppercase tracking-widest text-muted small d-block mb-2" style="letter-spacing: 3px;">The Blueprint</span>
+    <h1 class="display-5 mb-4" style="font-weight: 800; letter-spacing: -1px;">ABOUT THE PORTAL</h1>
+    <hr style="max-width: 60px; border-top: 3px solid #000; margin: 20px 0;" />
+
+    <p class="lead text-dark mb-4" style="line-height: 1.6;">
+        Coseng Photography is a professional, high-performance web asset ecosystem built to securely bundle, host, and deliver creative photography media straight to client endpoints.
+    </p>
+
+    <p class="text-muted mb-4" style="line-height: 1.7;">
+        By decoupling backend infrastructure from frontend client compilation engines, our application architecture ensures that original, uncompressed raw image file streams can be uploaded seamlessly to dedicated cloud object storage containers without performance drops.
+    </p>
+
+    <p class="text-muted mb-5" style="line-height: 1.7;">
+        Every single gallery collection generated within our platform creates an isolation footprint protected by individual 4-digit security tokens. This provides clients with straightforward, zero-friction web view access while maintaining complete integrity and confidentiality over their memories.
+    </p>
+
+    <a href="/" class="btn btn-dark p-2 px-4" style="border-radius: 0; font-size: 14px; letter-spacing: 1px; text-transform: uppercase;">
+        ← Back to System Home
+    </a>
+</div>
+
+<style>
+    .tracking-widest {
+        letter-spacing: 0.2em;
+    }
+
+    .animate-fade-in {
+        animation: fadeIn 0.5s ease-out forwards;
+    }
+
+    @@keyframes fadeIn {
+        from {
+            opacity: 0;
+            transform: translateY(10px);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+</style>

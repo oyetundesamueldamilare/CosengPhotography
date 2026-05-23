@@ -3,7 +3,7 @@
 @using CosengPhotography.Frontend.Services
 @inject GalleryApiService ApiService
 
-<div class="container mt-5" style="max-width: 800px; font-family: Arial, sans-serif;">
+<div class="container mt-5" style="max-width: 900px; font-family: Arial, sans-serif;">
 
     @if (!string.IsNullOrEmpty(StatusMessage))
     {
@@ -66,55 +66,116 @@
             <button class="btn btn-sm btn-outline-danger" @onclick="LogOut">Sign Out</button>
         </div>
 
-        <div class="card p-4 mb-4 shadow-sm" style="border: 1px solid #eee;">
-            <h4 class="mb-3" style="color: #333;">Initialize New Gallery Container</h4>
+        <div class="row">
+            <div class="col-md-5 mb-4">
+                <div class="card p-4 shadow-sm mb-4" style="border: 1px solid #eee;">
+                    <h4 class="mb-3" style="color: #333; font-weight: bold;">Initialize Gallery</h4>
 
-            <div class="mb-3">
-                <label class="form-label" style="font-weight: 600;">Event / Project Name</label>
-                <input type="text" class="form-control" @bind="NewGallery.EventName" placeholder="e.g., John and Jane Wedding" />
-            </div>
-
-            <div class="mb-3">
-                <label class="form-label" style="font-weight: 600;">Client Target Email Address</label>
-                <input type="email" class="form-control" @bind="NewGallery.CustomerEmail" placeholder="client@example.com" />
-            </div>
-
-            <button class="btn btn-dark w-100 p-2" @onclick="CreateNewGalleryAsync" disabled="@IsProcessing">
-                @(IsProcessing ? "Processing Transaction..." : "Generate Secure Gallery Footprint")
-            </button>
-        </div>
-
-        @if (CreatedGalleryId.HasValue)
-        {
-            <div class="card p-4 shadow-sm" style="border: 2px dashed #000; background-color: #fafafa;">
-                <h4 class="mb-2" style="color: #000; font-weight: bold;">Step 2: Upload Raw Photo Assets</h4>
-                <p class="text-muted small">Target Gallery ID: @CreatedGalleryId.Value</p>
-
-                <div class="my-4 text-center p-4" style="background: #fff; border: 1px dashed #ccc; border-radius: 4px;">
-                    <InputFile OnChange="HandleFileSelection" multiple class="form-control" id="fileUploadControl" />
-                </div>
-
-                @if (SelectedFiles.Any())
-                {
                     <div class="mb-3">
-                        <strong class="d-block mb-2">Staged Queue (@SelectedFiles.Count files detected):</strong>
-                        <ul class="list-group" style="max-height: 200px; overflow-y: auto; font-size: 13px;">
-                            @foreach (var file in SelectedFiles)
-                            {
-                                <li class="list-group-item d-flex justify-content-between align-content-center">
-                                    <span>📄 @file.Name</span>
-                                    <span class="badge bg-secondary">@((file.Size / 1024 / 1024).ToString("F2")) MB</span>
-                                </li>
-                            }
-                        </ul>
+                        <label class="form-label" style="font-weight: 600;">Event / Project Name</label>
+                        <input type="text" class="form-control" @bind="NewGallery.EventName" placeholder="e.g., John and Jane Wedding" />
                     </div>
 
-                    <button class="btn btn-success w-100 p-2" @onclick="ExecuteBatchUploadAsync" disabled="@IsUploading">
-                        @(IsUploading ? "Uploading Streams to Server..." : "🚀 Dispatch Streams & Fire Client Notification Email")
+                    <div class="mb-3">
+                        <label class="form-label" style="font-weight: 600;">Client Target Email Address</label>
+                        <input type="email" class="form-control" @bind="NewGallery.CustomerEmail" placeholder="client@example.com" />
+                    </div>
+
+                    <button class="btn btn-dark w-100 p-2" @onclick="CreateNewGalleryAsync" disabled="@IsProcessing">
+                        @(IsProcessing ? "Processing Transaction..." : "Generate Gallery Footprint")
                     </button>
+                </div>
+
+                @if (CreatedGalleryId.HasValue)
+                {
+                    <div class="card p-4 shadow-sm" style="border: 2px dashed #000; background-color: #fafafa;">
+                        <h4 class="mb-2" style="color: #000; font-weight: bold;">Step 2: Upload Assets</h4>
+                        <p class="text-muted small mb-2">Target ID: @CreatedGalleryId.Value.ToString().Substring(0, 8)...</p>
+
+                        <div class="mb-3 text-center p-3" style="background: #fff; border: 1px dashed #ccc;">
+                            <InputFile OnChange="HandleFileSelection" multiple class="form-control" id="fileUploadControl" />
+                        </div>
+
+                        @if (SelectedFiles.Any())
+                        {
+                            <div class="mb-3">
+                                <strong class="d-block mb-1 small text-muted">Staged Queue (@SelectedFiles.Count files):</strong>
+                                <ul class="list-group" style="max-height: 150px; overflow-y: auto; font-size: 12px;">
+                                    @foreach (var file in SelectedFiles)
+                                    {
+                                        <li class="list-group-item d-flex justify-content-between p-2">
+                                            <span class="text-truncate" style="max-width: 160px;">📄 @file.Name</span>
+                                            <span class="text-muted">@((file.Size / 1024 / 1024).ToString("F2")) MB</span>
+                                        </li>
+                                    }
+                                </ul>
+                            </div>
+
+                            <button class="btn btn-success w-100 p-2" @onclick="ExecuteBatchUploadAsync" disabled="@IsUploading">
+                                @(IsUploading ? "Uploading Streams..." : "🚀 Dispatch Streams")
+                            </button>
+                        }
+                    </div>
                 }
             </div>
-        }
+
+            <div class="col-md-7 mb-4">
+                <div class="card p-4 shadow-sm h-100" style="border: 1px solid #eee; min-height: 400px;">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h4 style="color: #333; font-weight: bold; margin: 0;">Active Spaces</h4>
+                        <button class="btn btn-sm btn-outline-secondary" @onclick="LoadGalleriesAsync" disabled="@IsProcessing">🔄 Refresh</button>
+                    </div>
+
+                    @if (IsLoadingHistory)
+                    {
+                        <div class="text-center my-5">
+                            <div class="spinner-border spinner-border-sm text-dark" role="status"></div>
+                            <p class="text-muted small mt-2">Synchronizing database log blocks...</p>
+                        </div>
+                    }
+                    else if (!ExistingGalleries.Any())
+                    {
+                        <div class="text-center my-5 py-5 border rounded style-empty-pane" style="background-color: #fafafa;">
+                            <p class="text-muted mb-0 small">No active gallery records discovered inside the database contexts.</p>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="table-responsive" style="max-height: 450px; overflow-y: auto;">
+                            <table class="table table-hover align-middle" style="font-size: 14px;">
+                                <thead class="table-light text-uppercase small" style="position: sticky; top: 0; background: #fff; z-index: 1;">
+                                    <tr>
+                                        <th>Project Details</th>
+                                        <th class="text-center">Secure PIN</th>
+                                        <th class="text-end">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var item in ExistingGalleries)
+                                    {
+                                        <tr>
+                                            <td>
+                                                <strong class="d-block text-dark text-truncate" style="max-width: 220px;">@item.EventName</strong>
+                                                <span class="text-muted small d-block text-truncate" style="max-width: 220px;">@item.CustomerEmail</span>
+                                            </td>
+                                            <td class="text-center">
+                                                <span class="badge bg-dark font-monospace px-2 py-1">@item.AccessPin</span>
+                                            </td>
+                                            <td class="text-end">
+                                                <div class="btn-group btn-group-sm">
+                                                    <a href="/view/@item.Id" target="_blank" class="btn btn-outline-dark">👁️ View</a>
+                                                    <button class="btn btn-outline-danger" @onclick="() => ConfirmDeleteAsync(item.Id)">🗑️ Drop</button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
     }
 </div>
 
@@ -122,6 +183,7 @@
     private bool IsAuthenticated { get; set; } = false;
     private bool ShowRegisterView { get; set; } = false;
     private bool IsProcessing { get; set; }
+    private bool IsLoadingHistory { get; set; } = false;
 
     // Authentication Models
     private RegisterDto RegisterModel { get; set; } = new() { Role = "Photographer" };
@@ -130,6 +192,7 @@
     // Core Management Property Fields
     private GalleryCreateDto NewGallery { get; set; } = new();
     private List<IBrowserFile> SelectedFiles { get; set; } = new();
+    private List<GalleryDto> ExistingGalleries { get; set; } = new();
     private Guid? CreatedGalleryId { get; set; }
     private bool IsUploading { get; set; }
 
@@ -140,6 +203,23 @@
     {
         ShowRegisterView = !ShowRegisterView;
         ClearStatus();
+    }
+
+    private async Task LoadGalleriesAsync()
+    {
+        try
+        {
+            IsLoadingHistory = true;
+            ExistingGalleries = await ApiService.GetAllGalleriesAsync();
+        }
+        catch (Exception ex)
+        {
+            SetStatus($"Context parsing alert: {ex.Message}", true);
+        }
+        finally
+        {
+            IsLoadingHistory = false;
+        }
     }
 
     private async Task ExecuteRegisterAsync()
@@ -187,6 +267,9 @@
                 IsAuthenticated = true;
                 StatusMessage = "Login validated against Identity Database contexts.";
                 IsError = false;
+
+                // Immediately trigger query fetch on successful login state change
+                await LoadGalleriesAsync();
             }
             else
             {
@@ -221,6 +304,9 @@
             var result = await ApiService.CreateGalleryAsync(NewGallery);
             CreatedGalleryId = result.Id;
             SetStatus($"Gallery footprint successfully generated! Secure Access PIN: {result.AccessPin}", false);
+
+            // Refresh the data logging table seamlessly
+            await LoadGalleriesAsync();
         }
         catch (Exception ex)
         {
@@ -248,6 +334,8 @@
             SelectedFiles.Clear();
             NewGallery = new();
             CreatedGalleryId = null;
+
+            await LoadGalleriesAsync();
         }
         catch (Exception ex)
         {
@@ -256,6 +344,25 @@
         finally
         {
             IsUploading = false;
+        }
+    }
+
+    private async Task ConfirmDeleteAsync(Guid galleryId)
+    {
+        try
+        {
+            IsLoadingHistory = true;
+            ClearStatus();
+
+            await ApiService.DeleteGalleryAsync(galleryId);
+            SetStatus("Gallery data footprint and all nested asset links successfully purged.", false);
+
+            await LoadGalleriesAsync();
+        }
+        catch (Exception ex)
+        {
+            SetStatus($"Purge Failure: {ex.Message}", true);
+            IsLoadingHistory = false;
         }
     }
 
@@ -268,6 +375,7 @@
     {
         IsAuthenticated = false;
         LoginModel = new();
+        ExistingGalleries.Clear();
         CreatedGalleryId = null;
         ClearStatus();
     }

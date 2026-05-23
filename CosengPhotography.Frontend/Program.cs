@@ -7,9 +7,9 @@ var builder = WebAssemblyHostBuilder.CreateDefault(args);
 builder.RootComponents.Add<App>("#app");
 builder.RootComponents.Add<HeadOutlet>("head::after");
 
-// Inside your Blazor Client's Program.cs
 builder.Services.AddScoped(sp => new HttpClient
 {
+    // FIXED: Now pointing directly to your active backend listening port
     BaseAddress = new Uri("https://localhost:7075/")
 });
 

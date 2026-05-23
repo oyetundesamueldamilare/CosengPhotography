@@ -103,6 +103,30 @@ namespace CosengPhotography.Repositories
             _context.Galleries.Remove(gallery);
             await _context.SaveChangesAsync();
         }
+        public async Task<List<GalleryDto>> GetAllGalleriesAsync()
+        {
+            // Query database contexts efficiently without eagerly dragging unneeded physical payloads
+            return await _context.Galleries
+                .AsNoTracking() // Optimizes performance for read-only tracking profiles
+                .OrderByDescending(g => g.CreatedAt) // Keeps your newest photo shoots right at the top
+                .Select(g => new GalleryDto
+                {
+                    Id = g.Id,
+                    EventName = g.EventName,
+                    CustomerEmail = g.CustomerEmail,
+                    AccessPin = g.AccessPin,
+                    CanDownload = g.CanDownload,
+                    CreatedAt = g.CreatedAt,
+                    Photos = g.Photos.Select(p => new PhotoDto
+                    {
+                        Id = p.Id,
+                        BlobUrl = p.BlobUrl,
+                        FileName = p.FileName
+                    }).ToList()
+             
+        })
+                .ToListAsync();
+        }
 
         #endregion
 

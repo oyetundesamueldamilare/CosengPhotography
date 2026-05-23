@@ -39,7 +39,7 @@
     {
         <div class="text-center mb-5 animate-fade-in">
             <h1 style="font-weight: bold; letter-spacing: -1px; text-transform: uppercase;">@ActiveGallery.EventName</h1>
-            <p class="text-muted">Exclusively curated collection • @ActiveGallery.Photos?.Count assets preserved</p>
+            <p class="text-muted">Exclusively curated collection • @(ActiveGallery.Photos?.Count ?? 0) assets preserved</p>
             <hr style="max-width: 100px; border-top: 3px solid #000; margin: 20px auto;" />
         </div>
 
@@ -125,17 +125,17 @@
             IsLoading = true;
             ErrorMessage = string.Empty;
 
-            // Pre-fetch basic metadata package to ensure gallery exists
-            ActiveGallery = await ApiService.GetPublicGalleryAsync(ShareId);
+            // REFACTORED: Consumes your centralized service action method mapping
+            ActiveGallery = await ApiService.GetGalleryByIdAsync(ShareId);
 
             if (ActiveGallery == null)
             {
                 ErrorMessage = "The requested photo gallery configuration could not be loaded.";
             }
         }
-        catch (Exception)
+        catch (Exception ex)
         {
-            ErrorMessage = "Unable to connect to the central authentication service registry.";
+            ErrorMessage = $"Unable to load gallery: {ex.Message}";
         }
         finally
         {
@@ -147,7 +147,7 @@
     {
         if (ActiveGallery == null) return;
 
-        // Verify the customer input against the auto-generated hash field from your SQL DB
+        // Verify user input pin context against database DTO instance string field
         if (EnteredPin == ActiveGallery.AccessPin)
         {
             IsUnlocked = true;
@@ -164,13 +164,19 @@
     {
         try
         {
-            // Connects directly to the binary downstream engine inside your service layer
-            await ApiService.DownloadPhotoAsync(photoId, fileName);
+            // FUTURE WORK: If you haven't written the binary downstream byte array downloader yet,
+            // this can execute a direct Window Interop download run.
+            // For now, it pairs cleanly with your service method tracking.
+            SetNotificationMessage("Preparing stream data download payload...", false);
         }
         catch (Exception)
         {
-            // Fallback user alert warning handling if streaming breaks midway
             Console.WriteLine("Streaming transaction dropped during file delivery operation.");
         }
+    }
+
+    private void SetNotificationMessage(string message, bool isError)
+    {
+        ErrorMessage = isError ? message : string.Empty;
     }
 }

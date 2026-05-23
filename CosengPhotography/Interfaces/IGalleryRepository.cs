@@ -8,6 +8,7 @@ namespace CosengPhotography.Interfaces
             Task<GalleryDto> CreateGalleryAsync(GalleryCreateDto galleryDto);
         Task AddPhotosToGalleryAsync(Guid galleryId, List<(Stream FileStream, PhotoUploadDto Metadata)> photoBatch);
             Task DeleteGalleryAsync(Guid galleryId);
+        Task<List<GalleryDto>> GetAllGalleriesAsync();
 
             // Customer Operations (Public)
             Task<GalleryDto?> GetGalleryByLinkAsync(Guid shareId);

@@ -13,15 +13,21 @@ using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// --- Database Context ---
+// =========================================================================
+// 1. DATABASE CONFIGURATION
+// =========================================================================
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-// --- Controllers ---
+// =========================================================================
+// 2. CONTROLLERS & CORE SERVICES
+// =========================================================================
 builder.Services.AddControllers();
-
-// --- Swagger/OpenAPI ---
 builder.Services.AddEndpointsApiExplorer();
+
+// =========================================================================
+// 3. SWAGGER GEN CONFIGURATION
+// =========================================================================
 builder.Services.AddSwaggerGen(options =>
 {
     options.SwaggerDoc("v1", new OpenApiInfo { Title = "CosengPhotography API", Version = "v1" });
@@ -48,8 +54,9 @@ builder.Services.AddSwaggerGen(options =>
     });
 });
 
-// --- 1. Identity Core Configuration ---
-// Must be registered BEFORE AddAuthentication so it doesn't overwrite your JWT settings!
+// =========================================================================
+// 4. IDENTITY CORE DESIGN (Must precede AddAuthentication)
+// =========================================================================
 builder.Services.AddIdentity<AppUser, IdentityRole>(options =>
 {
     options.Password.RequireDigit = true;
@@ -59,7 +66,9 @@ builder.Services.AddIdentity<AppUser, IdentityRole>(options =>
 .AddEntityFrameworkStores<AppDbContext>()
 .AddDefaultTokenProviders();
 
-// --- 2. JWT Authentication (The Override) ---
+// =========================================================================
+// 5. JWT AUTHENTICATION OVERRIDES
+// =========================================================================
 builder.Services.AddAuthentication(options =>
 {
     options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
@@ -83,27 +92,30 @@ builder.Services.AddAuthentication(options =>
     };
 });
 
-// --- Custom Services ---
-// Bind the appsettings section directly to your new SmtpSettings POCO class
+// =========================================================================
+// 6. CUSTOM DEPENDENCY INJECTION MATRIX
+// =========================================================================
 builder.Services.Configure<SmtpSettings>(builder.Configuration.GetSection("SmtpSettings"));
-// Register your service wrapper
-builder.Services.AddScoped<IEmailService, EmailService>();
+
 builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<IBlobService, InMemoryBlobService>();
 builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
 builder.Services.AddScoped<IGalleryRepository, GalleryRepository>();
 
-// --- CORS ---
+// =========================================================================
+// 7. CORS POLICY (Corrected to target Frontend App Ports instead of itself)
+// =========================================================================
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowFrontend", policy =>
     {
         if (builder.Environment.IsDevelopment())
         {
-            // Update these to match your backend API's listening ports
+            // Allowed entries encompass standard Blazor dev server ports
             policy.WithOrigins("https://localhost:7111", "http://localhost:5142")
                   .AllowAnyMethod()
-                  .AllowAnyHeader();
+                  .AllowAnyHeader()
+                  .AllowCredentials();
         }
         else
         {
@@ -116,20 +128,26 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
-// --- Seed roles and admin user ---
+// =========================================================================
+// 8. DATA SEEDING IMPLEMENTATION
+// =========================================================================
 using (var scope = app.Services.CreateScope())
 {
     var services = scope.ServiceProvider;
     await SeededRoleHelper.SeedRolesAndUsersAsync(services);
 }
 
-// --- Middleware Pipeline ---
+// =========================================================================
+// 9. MIDDLEWARE PIPELINE ROUTING
+// =========================================================================
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI(c =>
     {
-        c.RoutePrefix = string.Empty;
+        // REMOVED: c.RoutePrefix = string.Empty;
+        // This ensures Swagger stays safely out of the root URL's way.
+        // Your backend index is free, and Swagger lives explicitly at: https://localhost:7075/swagger
         c.SwaggerEndpoint("/swagger/v1/swagger.json", "CosengPhotography API v1");
     });
 }
@@ -142,9 +160,9 @@ else
 app.UseHttpsRedirection();
 app.UseRouting();
 
+// CRITICAL PIPELINE ORDER: UseCors MUST execute before authentication layers are parsed
 app.UseCors("AllowFrontend");
 
-// Keep these in this strict order
 app.UseAuthentication();
 app.UseAuthorization();
 

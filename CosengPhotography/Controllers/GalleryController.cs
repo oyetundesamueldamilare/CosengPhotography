@@ -184,11 +184,30 @@ namespace CosengPhotography.Controllers
                 return StatusCode(500, new { Message = "Could not retrieve file download link." });
             }
         }
+        /// <summary>
+        /// Retrieves all gallery containers in the database to populate the dashboard log history.
+        /// </summary>
+        [HttpGet]
+        [Authorize] // Matches your creation authorization scheme
+        public async Task<ActionResult<List<GalleryDto>>> GetAllGalleries()
+        {
+            try
+            {
+                // Assuming your repository interface has a method to retrieve all galleries
+                var galleries = await _galleryRepository.GetAllGalleriesAsync();
+                return Ok(galleries);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error occurred while fetching gallery collection data lists.");
+                return StatusCode(500, new { Message = "An internal error occurred while synchronizing database log blocks." });
+            }
+        }
 
         #endregion
 
         #region Private Fallback Helpers
-        
+
         private static async Task SafeCleanupStreamsAsync(List<(Stream FileStream, PhotoUploadDto Metadata)>? batch)
         {
             if (batch == null) return;
