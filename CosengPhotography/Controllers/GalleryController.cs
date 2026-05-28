@@ -46,7 +46,7 @@ namespace CosengPhotography.Controllers
         /// Accepts a multipart/form-data request containing an array of high-res files and uploads them.
         /// </summary>
         [HttpPost("{galleryId:guid}/upload")]
-        // [Authorize] 
+        [Authorize(Roles = "Admin, Photographer")] 
         [RequestSizeLimit(524288000)] // 500MB safety ceiling for batch uploads
         public async Task<IActionResult> UploadPhotos(Guid galleryId, [FromForm] List<IFormFile> files)
         {
@@ -123,7 +123,7 @@ namespace CosengPhotography.Controllers
         /// Deletes a gallery entry along with its physical file system traces.
         /// </summary>
         [HttpDelete("{id:guid}")]
-        [Authorize]
+        [Authorize(Roles = "Admin, Photographer")]
         public async Task<IActionResult> DeleteGallery(Guid id)
         {
             try
@@ -189,7 +189,7 @@ namespace CosengPhotography.Controllers
         /// Retrieves all gallery containers in the database to populate the dashboard log history.
         /// </summary>
         [HttpGet]
-        [Authorize] // Matches your creation authorization scheme
+        [Authorize(Roles = "Admin, Photographer")]
         public async Task<ActionResult<List<GalleryDto>>> GetAllGalleries()
         {
             try

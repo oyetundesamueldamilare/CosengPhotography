@@ -16,4 +16,8 @@
 		<ProjectReference Include="..\CosengPhotography.Shared\CosengPhotography.Shared.csproj" />
 	</ItemGroup>
 
+	<ItemGroup>
+	  <Folder Include="wwwroot\images\portfolio\" />
+	</ItemGroup>
+
 </Project>
