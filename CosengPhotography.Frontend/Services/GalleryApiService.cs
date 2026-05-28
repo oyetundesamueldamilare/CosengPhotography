@@ -37,15 +37,15 @@ namespace CosengPhotography.Frontend.Services
             return result;
         }
 
-        public async Task<FrontendAuthResult> RegisterAsync(RegisterDto dto)
-        {
-            var response = await _http.PostAsJsonAsync("api/auth/register", dto);
-            return await HandleAuthResponseAsync(response);
-        }
+        //public async Task<FrontendAuthResult> RegisterAsync(RegisterDto dto)
+        //{
+        //    var response = await _http.PostAsJsonAsync("api/auth/register", dto);
+        //    return await HandleAuthResponseAsync(response);
+        //}
 
-        // =========================================================================
-        // DATA HISTORY & SPACE PROVISIONING
-        // =========================================================================
+        //// =========================================================================
+        //// DATA HISTORY & SPACE PROVISIONING
+        //// =========================================================================
         public async Task<List<GalleryDto>> GetAllGalleriesAsync()
         {
             // Apply authorization headers right before firing the request
@@ -61,6 +61,24 @@ namespace CosengPhotography.Frontend.Services
 
             var error = await response.Content.ReadAsStringAsync();
             throw new Exception($"[Route Error] Server responded with code {(int)response.StatusCode}: {error}");
+        }
+        public async Task<FrontendAuthResult> RegisterAsync(RegisterDto dto)
+        {
+            // Now sending the full payload including the selected role string directly to the BE
+            var response = await _http.PostAsJsonAsync("api/auth/register", dto);
+
+            if (response.IsSuccessStatusCode)
+            {
+                return new FrontendAuthResult { IsSuccess = true };
+            }
+
+            // Safely reads raw text blocks or validation failures from the backend
+            var error = await response.Content.ReadAsStringAsync();
+            return new FrontendAuthResult
+            {
+                IsSuccess = false,
+                ErrorMessage = string.IsNullOrWhiteSpace(error) ? $"Server Error Code: {(int)response.StatusCode}" : error
+            };
         }
 
         public async Task<GalleryDto> CreateGalleryAsync(GalleryCreateDto dto)

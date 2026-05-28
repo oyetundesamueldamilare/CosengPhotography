@@ -18,8 +18,8 @@
             @if (ShowRegisterView)
             {
                 <div class="text-center mb-4">
-                    <h3 style="font-weight: bold;">Create Admin Account</h3>
-                    <p class="text-muted small">Register a new photographer identity footprint</p>
+                    <h3 style="font-weight: bold;">Create Account Portal</h3>
+                    <p class="text-muted small">Register a new identity footprint inside the framework</p>
                 </div>
 
                 <div class="mb-3">
@@ -30,9 +30,18 @@
                     <label class="form-label" style="font-weight: 600;">Email Address</label>
                     <input type="email" class="form-control" @bind="RegisterModel.Email" placeholder="admin@example.com" />
                 </div>
-                <div class="mb-4">
+                <div class="mb-3">
                     <label class="form-label" style="font-weight: 600;">Password</label>
                     <input type="password" class="form-control" @bind="RegisterModel.Password" placeholder="••••••••" />
+                </div>
+
+                <div class="mb-4">
+                    <label class="form-label" style="font-weight: 600;">Account Access Tier</label>
+                    <select class="form-select form-control" @bind="RegisterModel.Role">
+                        <option value="Customer">Customer</option>
+                        <option value="Photographer">Photographer</option>
+                        <option value="Admin">Admin </option>
+                    </select>
                 </div>
 
                 <button class="btn btn-dark w-100 p-2 mb-3" @onclick="ExecuteRegisterAsync" disabled="@IsProcessing">Register Identity</button>
@@ -185,8 +194,8 @@
     private bool IsProcessing { get; set; }
     private bool IsLoadingHistory { get; set; } = false;
 
-    // Authentication Models
-    private RegisterDto RegisterModel { get; set; } = new() { Role = "Photographer" };
+    // Authentication Models - Set default role string explicitly so value defaults clean
+    private RegisterDto RegisterModel { get; set; } = new() { Role = "Customer" };
     private LoginDto LoginModel { get; set; } = new();
 
     // Core Management Property Fields
@@ -235,7 +244,9 @@
                 StatusMessage = "User identity successfully created in database! You can now switch views and sign in.";
                 IsError = false;
                 ShowRegisterView = false;
-                RegisterModel = new() { Role = "Photographer" };
+
+                // Keep default initialized cleanly after full processing transaction clears out
+                RegisterModel = new() { Role = "Customer" };
             }
             else
             {
@@ -268,7 +279,6 @@
                 StatusMessage = "Login validated against Identity Database contexts.";
                 IsError = false;
 
-                // Immediately trigger query fetch on successful login state change
                 await LoadGalleriesAsync();
             }
             else
@@ -305,7 +315,6 @@
             CreatedGalleryId = result.Id;
             SetStatus($"Gallery footprint successfully generated! Secure Access PIN: {result.AccessPin}", false);
 
-            // Refresh the data logging table seamlessly
             await LoadGalleriesAsync();
         }
         catch (Exception ex)
