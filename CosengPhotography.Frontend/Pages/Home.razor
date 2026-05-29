@@ -1,7 +1,7 @@
 ﻿@page "/"
 
 <div class="animate-fade-in">
-    <!-- Sophisticated Photography Hero Banner -->
+    <!--maekns Sophisticated Photography Hero Banner -->
     <header class="portfolio-hero position-relative d-flex align-items-center justify-content-center text-center">
         <div class="portfolio-hero-overlay"></div>
         <div class="portfolio-hero-content text-white z-2">
@@ -9,13 +9,13 @@
             <h1 class="portfolio-title">COSENG STUDIOS</h1>
             <p class="portfolio-tagline">Visual storytelling framed through precise, high-tier clarity.</p>
             <div class="d-flex justify-content-center gap-3 mt-4">
-                <a href="#gallery-section" class="btn btn-light btn-portfolio text-uppercase">View Showcase</a>
-                <a href="/Portal" class="btn btn-outline-light btn-portfolio text-uppercase">Client Portal Access</a>
+                <a href="#gallery-section" class="btn btn-light btn-portfolio text-uppercase">Our Showroom</a>
+                <a href="/Portal" class="btn btn-outline-light btn-portfolio text-uppercase">Portal Access</a>
             </div>
         </div>
     </header>
 
-    <!-- Interactive Portfolio Showcase Grid -->
+    <!--maekns Interactive Portfolio Showcase Grid -->
     <section id="gallery-section" class="container my-5 py-5">
         <div class="text-center mb-5">
             <h2 class="section-title">Selected Works Matrix</h2>
@@ -23,7 +23,7 @@
             <hr class="section-divider-dark" />
         </div>
 
-        <!-- Filter Navigation -->
+        <!--maekns Filter Navigation -->
         <div class="d-flex justify-content-center gap-2 mb-5 flex-wrap">
             <button class="btn btn-sm @(SelectedCategory == "All" ? "btn-dark" : "btn-outline-dark") filter-btn" @onclick='() => FilterCategory("All")'>All Works</button>
             <button class="btn btn-sm @(SelectedCategory == "Weddings" ? "btn-dark" : "btn-outline-dark") filter-btn" @onclick='() => FilterCategory("Weddings")'>Weddings</button>
@@ -31,7 +31,7 @@
             <button class="btn btn-sm @(SelectedCategory == "Commercial" ? "btn-dark" : "btn-outline-dark") filter-btn" @onclick='() => FilterCategory("Commercial")'>Commercial</button>
         </div>
 
-        <!-- Image Matrix Grid -->
+        <!--maekns Image Matrix Grid -->
         <div class="row g-4">
             @foreach (var work in FilteredWorks)
             {
