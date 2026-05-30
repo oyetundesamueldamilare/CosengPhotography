@@ -10,6 +10,7 @@ namespace CosengPhotography.Models
         [Required]
         [StringLength(200)]
         public string EventName { get; set; } = string.Empty;
+        public AppUser? Owner { get; set; }
 
         [Required]
         [EmailAddress]

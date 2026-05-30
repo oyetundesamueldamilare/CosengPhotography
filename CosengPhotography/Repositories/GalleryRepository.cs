@@ -5,7 +5,6 @@ using CosengPhotography.Models;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Cryptography;
 
-
 namespace CosengPhotography.Repositories
 {
     public class GalleryRepository : IGalleryRepository
@@ -28,6 +27,7 @@ namespace CosengPhotography.Repositories
             var gallery = new Gallery
             {
                 Id = Guid.NewGuid(),
+                PhotographerId = galleryDto.PhotographerId, // Mapping incoming user identity token straight to PhotographerId
                 EventName = galleryDto.EventName,
                 CustomerEmail = galleryDto.CustomerEmail,
                 AccessPin = GenerateRandomPin(4),
@@ -42,7 +42,6 @@ namespace CosengPhotography.Repositories
             return MapToDto(gallery);
         }
 
-        // REFACTOR: Method signature decoupled from IFormFile / Stream structures inside DTOs
         public async Task AddPhotosToGalleryAsync(Guid galleryId, List<(Stream FileStream, PhotoUploadDto Metadata)> photoBatch)
         {
             if (photoBatch == null || !photoBatch.Any()) return;
@@ -56,7 +55,6 @@ namespace CosengPhotography.Repositories
             {
                 try
                 {
-                    // Stream and DTO are processed side-by-side cleanly
                     string relativeUrl = await _blobService.UploadFileAsync(item.FileStream, item.Metadata.FileName);
 
                     photoEntities.Add(new Photo
@@ -74,8 +72,6 @@ namespace CosengPhotography.Repositories
                 }
                 finally
                 {
-                    // CRITICAL: Ensure we dispose of the unmanaged file stream right here 
-                    // where the operation concludes, eliminating potential server file locks.
                     await item.FileStream.DisposeAsync();
                 }
             }
@@ -87,8 +83,18 @@ namespace CosengPhotography.Repositories
             }
         }
 
-        public async Task DeleteGalleryAsync(Guid galleryId)
+        //Validates photographer context boundaries before dropping records
+        public async Task DeleteGalleryAsync(Guid galleryId, string photographerId, bool isAdmin)
         {
+            var gallery = await _context.Galleries.FirstOrDefaultAsync(g => g.Id == galleryId);
+            if (gallery == null) throw new KeyNotFoundException("Gallery record not found.");
+
+            // Security Gate: Block drop execution if caller isn't the Admin tier or the assigning Photographer
+            if (!isAdmin && gallery.PhotographerId != photographerId)
+            {
+                throw new UnauthorizedAccessException("You do not possess security access clearings to drop this gallery footprint.");
+            }
+
             var photoUrls = await _context.Photos
                 .Where(p => p.GalleryId == galleryId)
                 .Select(p => p.BlobUrl)
@@ -97,18 +103,24 @@ namespace CosengPhotography.Repositories
             var deleteTasks = photoUrls.Select(url => _blobService.DeleteFileAsync(url));
             await Task.WhenAll(deleteTasks);
 
-            var gallery = await _context.Galleries.FirstOrDefaultAsync(g => g.Id == galleryId);
-            if (gallery == null) throw new KeyNotFoundException();
-
             _context.Galleries.Remove(gallery);
             await _context.SaveChangesAsync();
         }
-        public async Task<List<GalleryDto>> GetAllGalleriesAsync()
+
+        //Filters the database stream context down to photographer workspace profiles
+        public async Task<List<GalleryDto>> GetAllGalleriesAsync(string photographerId, bool isAdmin)
         {
-            // Query database contexts efficiently without eagerly dragging unneeded physical payloads
-            return await _context.Galleries
-                .AsNoTracking() // Optimizes performance for read-only tracking profiles
-                .OrderByDescending(g => g.CreatedAt) // Keeps your newest photo shoots right at the top
+            IQueryable<Gallery> query = _context.Galleries;
+
+            // Enforce multi-tenant segregation rules if the user isn't a global Administrator
+            if (!isAdmin)
+            {
+                query = query.Where(g => g.PhotographerId == photographerId);
+            }
+
+            return await query
+                .AsNoTracking()
+                .OrderByDescending(g => g.CreatedAt)
                 .Select(g => new GalleryDto
                 {
                     Id = g.Id,
@@ -123,8 +135,7 @@ namespace CosengPhotography.Repositories
                         BlobUrl = p.BlobUrl,
                         FileName = p.FileName
                     }).ToList()
-             
-        })
+                })
                 .ToListAsync();
         }
 

@@ -2,11 +2,11 @@
 using CosengPhotography.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-
+using System.Security.Claims;
 
 namespace CosengPhotography.Controllers
 {
-    [ApiController]                                                                     
+    [ApiController]
     [Route("api/[controller]")]
     public class GalleryController : ControllerBase
     {
@@ -23,15 +23,20 @@ namespace CosengPhotography.Controllers
 
         #region Admin Operations 
 
-        /// <summary>
-        /// Creates an empty structural gallery container, automatically generating the shareable ID and secure PIN.
-        /// </summary>
-        [HttpPost]              
-        [Authorize(Roles = "Admin, Photographer")] // Uncomment when Identity JWT configurations are fully finalized
+     
+        [HttpPost]
+        [Authorize(Roles = "Admin, Photographer")]
         public async Task<ActionResult<GalleryDto>> CreateGallery([FromBody] GalleryCreateDto dto)
         {
             try
             {
+                // Extract the Identity ID string from the authenticated JWT token context
+                var photographerId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+                if (string.IsNullOrEmpty(photographerId)) return Unauthorized();
+
+                // Inject the authenticated photographer ID directly into the creation payload configuration
+                dto.PhotographerId = photographerId;
+
                 var result = await _galleryRepository.CreateGalleryAsync(dto);
                 return StatusCode(201, result);
             }
@@ -46,7 +51,7 @@ namespace CosengPhotography.Controllers
         /// Accepts a multipart/form-data request containing an array of high-res files and uploads them.
         /// </summary>
         [HttpPost("{galleryId:guid}/upload")]
-        [Authorize(Roles = "Admin, Photographer")] 
+        [Authorize(Roles = "Admin, Photographer")]
         [RequestSizeLimit(524288000)] // 500MB safety ceiling for batch uploads
         public async Task<IActionResult> UploadPhotos(Guid galleryId, [FromForm] List<IFormFile> files)
         {
@@ -59,7 +64,6 @@ namespace CosengPhotography.Controllers
 
             try
             {
-                // Materialize the incoming network streams
                 photoBatch = files.Select(file => (
                     FileStream: file.OpenReadStream(),
                     Metadata: new PhotoUploadDto
@@ -69,16 +73,12 @@ namespace CosengPhotography.Controllers
                     }
                 )).ToList();
 
-                // 1. Process physical file storage and write database records
                 await _galleryRepository.AddPhotosToGalleryAsync(galleryId, photoBatch);
 
-                // 2. Fetch the newly populated gallery data to build the notification
                 var galleryData = await _galleryRepository.GetGalleryByLinkAsync(galleryId);
 
                 if (galleryData != null)
                 {
-                    // Build the shareable frontend URL dynamically
-                    // Note: Update "localhost:3000" or replace it via builder.Configuration["App:FrontendUrl"] in production
                     string frontendViewUrl = $"http://localhost:3000/view/{galleryId}";
 
                     var emailNotification = new GalleryNotificationDto
@@ -89,8 +89,6 @@ namespace CosengPhotography.Controllers
                         ShareUrl = frontendViewUrl
                     };
 
-                    // 3. Fire-and-forget: Dispatch the email asynchronously on a background worker thread
-                    // This prevents your frontend app from freezing while waiting for SMTP network responses
                     _ = Task.Run(async () =>
                     {
                         try
@@ -120,7 +118,7 @@ namespace CosengPhotography.Controllers
         }
 
         /// <summary>
-        /// Deletes a gallery entry along with its physical file system traces.
+        /// Deletes a gallery entry along with its physical file system traces after passing tenant security authorization checks.
         /// </summary>
         [HttpDelete("{id:guid}")]
         [Authorize(Roles = "Admin, Photographer")]
@@ -128,8 +126,19 @@ namespace CosengPhotography.Controllers
         {
             try
             {
-                await _galleryRepository.DeleteGalleryAsync(id);
+                var photographerId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+                bool isAdmin = User.IsInRole("Admin");
+
+                if (string.IsNullOrEmpty(photographerId)) return Unauthorized();
+
+                // Pass context tracking parameters to allow repository-level multi-tenant cross-verification validation
+                await _galleryRepository.DeleteGalleryAsync(id, photographerId, isAdmin);
                 return NoContent();
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                // Safely handles 403 Forbidden scenarios if a photographer attempts to alter data belonging to a colleague
+                return StatusCode(403, new { Message = ex.Message });
             }
             catch (KeyNotFoundException)
             {
@@ -149,7 +158,7 @@ namespace CosengPhotography.Controllers
         /// <summary>
         /// Read-only endpoint for the client-side landing grid using the unindexed shareable GUID.
         /// </summary>
-        [HttpGet("view/{shareId:guid}")]
+        [HttpGet("view/{shareId:guid}/")]
         [AllowAnonymous]
         public async Task<ActionResult<GalleryDto>> GetPublicGallery(Guid shareId)
         {
@@ -185,8 +194,9 @@ namespace CosengPhotography.Controllers
                 return StatusCode(500, new { Message = "Could not retrieve file download link." });
             }
         }
+
         /// <summary>
-        /// Retrieves all gallery containers in the database to populate the dashboard log history.
+        /// Retrieves gallery containers from the database, automatically tailoring output list scopes based on user role parameters.
         /// </summary>
         [HttpGet]
         [Authorize(Roles = "Admin, Photographer")]
@@ -194,8 +204,13 @@ namespace CosengPhotography.Controllers
         {
             try
             {
-                // Assuming your repository interface has a method to retrieve all galleries
-                var galleries = await _galleryRepository.GetAllGalleriesAsync();
+                var photographerId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+                bool isAdmin = User.IsInRole("Admin");
+
+                if (string.IsNullOrEmpty(photographerId)) return Unauthorized();
+
+                // Pull data safely filtered according to the current authentication token parameters
+                var galleries = await _galleryRepository.GetAllGalleriesAsync(photographerId, isAdmin);
                 return Ok(galleries);
             }
             catch (Exception ex)
@@ -223,7 +238,7 @@ namespace CosengPhotography.Controllers
                     }
                     catch
                     {
-                        // Passive suppression: prevent error-handling crashes during pipeline failure states
+                        // Passive suppression
                     }
                 }
             }
