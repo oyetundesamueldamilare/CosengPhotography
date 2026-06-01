@@ -26,7 +26,7 @@
         <!--maekns Filter Navigation -->
         <div class="d-flex justify-content-center gap-2 mb-5 flex-wrap">
             <button class="btn btn-sm @(SelectedCategory == "All" ? "btn-dark" : "btn-outline-dark") filter-btn" @onclick='() => FilterCategory("All")'>All Works</button>
-            <button class="btn btn-sm @(SelectedCategory == "Weddings" ? "btn-dark" : "btn-outline-dark") filter-btn" @onclick='() => FilterCategory("Weddings")'>Weddings</button>
+            <button class="btn btn-sm @(SelectedCategory == "Parties" ? "btn-dark" : "btn-outline-dark") filter-btn" @onclick='() => FilterCategory("Parties")'>Parties</button>
             <button class="btn btn-sm @(SelectedCategory == "Portraits" ? "btn-dark" : "btn-outline-dark") filter-btn" @onclick='() => FilterCategory("Portraits")'>Portraits</button>
             <button class="btn btn-sm @(SelectedCategory == "Commercial" ? "btn-dark" : "btn-outline-dark") filter-btn" @onclick='() => FilterCategory("Commercial")'>Commercial</button>
         </div>
@@ -63,12 +63,18 @@
 
     private List<SampleWork> SamplePortfolio { get; set; } = new()
     {
-        new SampleWork { Title = "The Eternity Veil", Category = "Weddings", ImageUrl = "images/image1.jpg" },
-        new SampleWork { Title = "Monochrome Editorial V1", Category = "Portraits", ImageUrl = "images/image2.jpg" },
-        new SampleWork { Title = "Architectural Geometric", Category = "Commercial", ImageUrl = "images/image1.jpg" },
-        new SampleWork { Title = "Golden Hour Romance", Category = "Weddings", ImageUrl = "images/image2.jpg" },
-        new SampleWork { Title = "Studio Identity Study", Category = "Portraits", ImageUrl = "images/image1.jpg" },
-        new SampleWork { Title = "Product Luminescence", Category = "Commercial", ImageUrl = "images/image2.jpg" }
+        new SampleWork { Title = "Sample Work", Category = "Parties", ImageUrl = "images/parties/image1.jpg" },
+        new SampleWork { Title = "Sample Work", Category = "Parties", ImageUrl = "images/parties/image2.jpg" },
+        new SampleWork { Title = "Sample Work", Category = "Parties", ImageUrl = "images/parties/image3.jpg" },
+        new SampleWork { Title = "Sample Work", Category = "Parties", ImageUrl = "images/parties/image4.jpg" },
+        new SampleWork { Title = "Sample Work", Category = "Portraits", ImageUrl = "images/portraits/image1.jpg" },
+        new SampleWork { Title = "Sample Work", Category = "Portraits", ImageUrl = "images/portraits/image2.jpg" },
+        new SampleWork { Title = "Sample Work", Category = "Portraits", ImageUrl = "images/portraits/image3.jpg" },
+        new SampleWork { Title = "Sample Work", Category = "Portraits", ImageUrl = "images/portraits/image4.jpg" },
+        new SampleWork { Title = "Sample Workc", Category = "Commercial", ImageUrl = "images/commercial/image1.jpg" },
+        new SampleWork { Title = "Sample Work", Category = "Commercial", ImageUrl = "images/commercial/image2.jpg" },
+        new SampleWork { Title = "Sample Work", Category = "Commercial", ImageUrl = "images/commercial/image3.jpg" },
+        new SampleWork { Title = "Sample Work", Category = "Commercial", ImageUrl = "images/commercial/image4.jpg" },
     };
 
     public class SampleWork

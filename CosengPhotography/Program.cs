@@ -1,3 +1,5 @@
+using Amazon.Extensions.NETCore.Setup;
+using Amazon.S3;
 using CosengPhotography.Data;
 using CosengPhotography.Helpers;
 using CosengPhotography.Interfaces;
@@ -8,8 +10,8 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
-using Npgsql.EntityFrameworkCore.PostgreSQL;
 using Microsoft.OpenApi.Models;
+using Npgsql.EntityFrameworkCore.PostgreSQL;
 using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -96,6 +98,11 @@ builder.Services.AddAuthentication(options =>
 // =========================================================================
 // 6. CUSTOM DEPENDENCY INJECTION MATRIX
 // =========================================================================
+//Resolve and extract the core AWS credential profile settings block
+builder.Services.AddDefaultAWSOptions(builder.Configuration.GetAWSOptions());
+//Register the core Amazon S3 client engine infrastructure dependency injection mapping
+builder.Services.AddAWSService<IAmazonS3>();
+
 builder.Services.Configure<SmtpSettings>(builder.Configuration.GetSection("SmtpSettings"));
 
 builder.Services.AddScoped<IEmailService, EmailService>();
