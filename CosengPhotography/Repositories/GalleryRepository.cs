@@ -20,14 +20,12 @@ namespace CosengPhotography.Repositories
             _logger = logger;
         }
 
-        #region Admin Operations (Photographer)
-
         public async Task<GalleryDto> CreateGalleryAsync(GalleryCreateDto galleryDto)
         {
             var gallery = new Gallery
             {
                 Id = Guid.NewGuid(),
-                PhotographerId = galleryDto.PhotographerId, // Mapping incoming user identity token straight to PhotographerId
+                PhotographerId = galleryDto.PhotographerId,
                 EventName = galleryDto.EventName,
                 CustomerEmail = galleryDto.CustomerEmail,
                 AccessPin = GenerateRandomPin(4),
@@ -69,10 +67,7 @@ namespace CosengPhotography.Repositories
                 catch (Exception ex)
                 {
                     _logger.LogError(ex, "Failed physical upload loop for file {FileName} in gallery {GalleryId}.", item.Metadata.FileName, galleryId);
-                }
-                finally
-                {
-                    await item.FileStream.DisposeAsync();
+                    throw;
                 }
             }
 
@@ -83,13 +78,11 @@ namespace CosengPhotography.Repositories
             }
         }
 
-        //Validates photographer context boundaries before dropping records
         public async Task DeleteGalleryAsync(Guid galleryId, string photographerId, bool isAdmin)
         {
             var gallery = await _context.Galleries.FirstOrDefaultAsync(g => g.Id == galleryId);
             if (gallery == null) throw new KeyNotFoundException("Gallery record not found.");
 
-            // Security Gate: Block drop execution if caller isn't the Admin tier or the assigning Photographer
             if (!isAdmin && gallery.PhotographerId != photographerId)
             {
                 throw new UnauthorizedAccessException("You do not possess security access clearings to drop this gallery footprint.");
@@ -107,12 +100,10 @@ namespace CosengPhotography.Repositories
             await _context.SaveChangesAsync();
         }
 
-        //Filters the database stream context down to photographer workspace profiles
         public async Task<List<GalleryDto>> GetAllGalleriesAsync(string photographerId, bool isAdmin)
         {
             IQueryable<Gallery> query = _context.Galleries;
 
-            // Enforce multi-tenant segregation rules if the user isn't a global Administrator
             if (!isAdmin)
             {
                 query = query.Where(g => g.PhotographerId == photographerId);
@@ -139,10 +130,6 @@ namespace CosengPhotography.Repositories
                 .ToListAsync();
         }
 
-        #endregion
-
-        #region Customer Operations (Public)
-
         public async Task<GalleryDto?> GetGalleryByLinkAsync(Guid shareId)
         {
             var gallery = await _context.Galleries
@@ -161,14 +148,10 @@ namespace CosengPhotography.Repositories
                 .AsNoTracking()
                 .FirstOrDefaultAsync(p => p.Id == photoId);
 
-            if (photo == null) throw new KeyNotFoundException();
+            if (photo == null) throw new KeyNotFoundException("Target photo item could not be found.");
 
             return await _blobService.GetSecureUrlAsync(photo.BlobUrl);
         }
-
-        #endregion
-
-        #region Private Helpers
 
         private string GenerateRandomPin(int length)
         {
@@ -187,15 +170,13 @@ namespace CosengPhotography.Repositories
                 AccessPin = gallery.AccessPin,
                 CanDownload = gallery.CanDownload,
                 CreatedAt = gallery.CreatedAt,
-                Photos = gallery.Photos.Select(p => new PhotoDto
+                Photos = gallery.Photos?.Select(p => new PhotoDto
                 {
                     Id = p.Id,
                     BlobUrl = p.BlobUrl,
                     FileName = p.FileName
-                }).ToList()
+                }).ToList() ?? new List<PhotoDto>()
             };
         }
-
-        #endregion
     }
 }

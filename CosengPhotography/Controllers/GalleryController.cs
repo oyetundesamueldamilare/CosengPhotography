@@ -1,5 +1,6 @@
-﻿using CosengPhotography.Shared.Dtos;
-using CosengPhotography.Interfaces;
+﻿using CosengPhotography.Interfaces;
+using CosengPhotography.Services;
+using CosengPhotography.Shared.Dtos;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
@@ -10,49 +11,37 @@ namespace CosengPhotography.Controllers
     [Route("api/[controller]")]
     public class GalleryController : ControllerBase
     {
-        private readonly IGalleryRepository _galleryRepository;
+        private readonly IGalleryService _galleryService;
         private readonly ILogger<GalleryController> _logger;
-        private readonly IEmailService _emailService;
 
-        public GalleryController(IGalleryRepository galleryRepository, ILogger<GalleryController> logger, IEmailService emailService)
+        public GalleryController(IGalleryService galleryService, ILogger<GalleryController> logger)
         {
-            _galleryRepository = galleryRepository;
+            _galleryService = galleryService;
             _logger = logger;
-            _emailService = emailService;
         }
 
-        #region Admin Operations 
-
-     
         [HttpPost]
         [Authorize(Roles = "Admin, Photographer")]
         public async Task<ActionResult<GalleryDto>> CreateGallery([FromBody] GalleryCreateDto dto)
         {
             try
             {
-                // Extract the Identity ID string from the authenticated JWT token context
                 var photographerId = User.FindFirstValue(ClaimTypes.NameIdentifier);
                 if (string.IsNullOrEmpty(photographerId)) return Unauthorized();
 
-                // Inject the authenticated photographer ID directly into the creation payload configuration
-                dto.PhotographerId = photographerId;
-
-                var result = await _galleryRepository.CreateGalleryAsync(dto);
+                var result = await _galleryService.CreateGalleryAsync(dto, photographerId);
                 return StatusCode(201, result);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error occurred while initializing a new gallery container.");
-                return StatusCode(500, new { Message = "An internal error occurred while setting up the gallery footprint." });
+                return StatusCode(500, new { Message = "An internal error occurred." });
             }
         }
 
-        /// <summary>
-        /// Accepts a multipart/form-data request containing an array of high-res files and uploads them.
-        /// </summary>
         [HttpPost("{galleryId:guid}/upload")]
         [Authorize(Roles = "Admin, Photographer")]
-        [RequestSizeLimit(524288000)] // 500MB safety ceiling for batch uploads
+        [RequestSizeLimit(524288000)] // 500MB safety ceiling
         public async Task<IActionResult> UploadPhotos(Guid galleryId, [FromForm] List<IFormFile> files)
         {
             if (files == null || !files.Any())
@@ -60,66 +49,26 @@ namespace CosengPhotography.Controllers
                 return BadRequest(new { Message = "No photo streams were received for upload." });
             }
 
-            List<(Stream FileStream, PhotoUploadDto Metadata)>? photoBatch = null;
-
             try
             {
-                photoBatch = files.Select(file => (
-                    FileStream: file.OpenReadStream(),
-                    Metadata: new PhotoUploadDto
-                    {
-                        FileName = Path.GetFileName(file.FileName),
-                        FileSize = file.Length
-                    }
-                )).ToList();
-
-                await _galleryRepository.AddPhotosToGalleryAsync(galleryId, photoBatch);
-
-                var galleryData = await _galleryRepository.GetGalleryByLinkAsync(galleryId);
-
-                if (galleryData != null)
+                var updatedGallery = await _galleryService.ProcessPhotosUploadAsync(galleryId, files);
+                return Ok(new
                 {
-                    string frontendViewUrl = $"http://localhost:3000/view/{galleryId}";
-
-                    var emailNotification = new GalleryNotificationDto
-                    {
-                        CustomerEmail = galleryData.CustomerEmail,
-                        EventName = galleryData.EventName,
-                        AccessPin = galleryData.AccessPin,
-                        ShareUrl = frontendViewUrl
-                    };
-
-                    _ = Task.Run(async () =>
-                    {
-                        try
-                        {
-                            await _emailService.SendGalleryAccessEmailAsync(emailNotification);
-                        }
-                        catch (Exception mailEx)
-                        {
-                            _logger.LogError(mailEx, "Background notification dispatch failed for gallery {GalleryId}", galleryId);
-                        }
-                    });
-                }
-
-                return Ok(new { Message = $"{files.Count} photos successfully uploaded and added to the gallery. Access email dispatched." });
+                    Message = $"{files.Count} photos successfully uploaded. Notification email dispatched.",
+                    Gallery = updatedGallery
+                });
             }
             catch (KeyNotFoundException ex)
             {
-                await SafeCleanupStreamsAsync(photoBatch);
                 return NotFound(new { Message = ex.Message });
             }
             catch (Exception ex)
             {
-                await SafeCleanupStreamsAsync(photoBatch);
                 _logger.LogError(ex, "Error executing batch file upload pipeline for gallery {GalleryId}", galleryId);
-                return StatusCode(500, new { Message = "An internal processing error occurred while writing files to disk." });
+                return StatusCode(500, new { Message = "An internal processing error occurred." });
             }
         }
 
-        /// <summary>
-        /// Deletes a gallery entry along with its physical file system traces after passing tenant security authorization checks.
-        /// </summary>
         [HttpDelete("{id:guid}")]
         [Authorize(Roles = "Admin, Photographer")]
         public async Task<IActionResult> DeleteGallery(Guid id)
@@ -131,13 +80,11 @@ namespace CosengPhotography.Controllers
 
                 if (string.IsNullOrEmpty(photographerId)) return Unauthorized();
 
-                // Pass context tracking parameters to allow repository-level multi-tenant cross-verification validation
-                await _galleryRepository.DeleteGalleryAsync(id, photographerId, isAdmin);
+                await _galleryService.DeleteGalleryAsync(id, photographerId, isAdmin);
                 return NoContent();
             }
             catch (UnauthorizedAccessException ex)
             {
-                // Safely handles 403 Forbidden scenarios if a photographer attempts to alter data belonging to a colleague
                 return StatusCode(403, new { Message = ex.Message });
             }
             catch (KeyNotFoundException)
@@ -147,41 +94,26 @@ namespace CosengPhotography.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error deleting gallery {GalleryId}", id);
-                return StatusCode(500, new { Message = "An error occurred while deleting the gallery." });
+                return StatusCode(500, new { Message = "An error occurred." });
             }
         }
 
-        #endregion
-
-        #region Customer Operations (Public)
-
-        /// <summary>
-        /// Read-only endpoint for the client-side landing grid using the unindexed shareable GUID.
-        /// </summary>
         [HttpGet("view/{shareId:guid}/")]
         [AllowAnonymous]
         public async Task<ActionResult<GalleryDto>> GetPublicGallery(Guid shareId)
         {
-            var gallery = await _galleryRepository.GetGalleryByLinkAsync(shareId);
-
-            if (gallery == null)
-            {
-                return NotFound(new { Message = "This gallery is no longer active or could not be found." });
-            }
-
+            var gallery = await _galleryService.GetGalleryByLinkAsync(shareId);
+            if (gallery == null) return NotFound(new { Message = "Gallery not found." });
             return Ok(gallery);
         }
 
-        /// <summary>
-        /// Returns the secure relative file path for an item download request.
-        /// </summary>
         [HttpGet("download/{photoId:int}")]
         [AllowAnonymous]
         public async Task<IActionResult> GetPhotoDownloadLink(int photoId)
         {
             try
             {
-                var downloadUrl = await _galleryRepository.GetDownloadLinkAsync(photoId);
+                var downloadUrl = await _galleryService.GetDownloadLinkAsync(photoId);
                 return Ok(new { Url = downloadUrl });
             }
             catch (KeyNotFoundException)
@@ -195,9 +127,6 @@ namespace CosengPhotography.Controllers
             }
         }
 
-        /// <summary>
-        /// Retrieves gallery containers from the database, automatically tailoring output list scopes based on user role parameters.
-        /// </summary>
         [HttpGet]
         [Authorize(Roles = "Admin, Photographer")]
         public async Task<ActionResult<List<GalleryDto>>> GetAllGalleries()
@@ -209,41 +138,14 @@ namespace CosengPhotography.Controllers
 
                 if (string.IsNullOrEmpty(photographerId)) return Unauthorized();
 
-                // Pull data safely filtered according to the current authentication token parameters
-                var galleries = await _galleryRepository.GetAllGalleriesAsync(photographerId, isAdmin);
+                var galleries = await _galleryService.GetAllGalleriesAsync(photographerId, isAdmin);
                 return Ok(galleries);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error occurred while fetching gallery collection data lists.");
-                return StatusCode(500, new { Message = "An internal error occurred while synchronizing database log blocks." });
+                return StatusCode(500, new { Message = "An internal error occurred." });
             }
         }
-
-        #endregion
-
-        #region Private Fallback Helpers
-
-        private static async Task SafeCleanupStreamsAsync(List<(Stream FileStream, PhotoUploadDto Metadata)>? batch)
-        {
-            if (batch == null) return;
-
-            foreach (var item in batch)
-            {
-                if (item.FileStream != null)
-                {
-                    try
-                    {
-                        await item.FileStream.DisposeAsync();
-                    }
-                    catch
-                    {
-                        // Passive suppression
-                    }
-                }
-            }
-        }
-
-        #endregion
     }
 }

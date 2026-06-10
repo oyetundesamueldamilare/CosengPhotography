@@ -226,6 +226,105 @@ o	Database → Azure SQL
 
 •	Mobile-friendly UI improvements.
 
+-- WARNING: This schema is for context only and is not meant to be run.
+-- Table order and constraints may not be valid for execution.
+
+
+CREATE TABLE public.__EFMigrationsHistory (
+  MigrationId character varying NOT NULL,
+  ProductVersion character varying NOT NULL,
+  CONSTRAINT __EFMigrationsHistory_pkey PRIMARY KEY (MigrationId)
+);
+CREATE TABLE public.AspNetRoles (
+  Id text NOT NULL,
+  Name character varying,
+  NormalizedName character varying,
+  ConcurrencyStamp text,
+  CONSTRAINT AspNetRoles_pkey PRIMARY KEY (Id)
+);
+CREATE TABLE public.AspNetUsers (
+  Id text NOT NULL,
+  FullName text NOT NULL,
+  UserName character varying,
+  NormalizedUserName character varying,
+  Email character varying,
+  NormalizedEmail character varying,
+  EmailConfirmed boolean NOT NULL,
+  PasswordHash text,
+  SecurityStamp text,
+  ConcurrencyStamp text,
+  PhoneNumber text,
+  PhoneNumberConfirmed boolean NOT NULL,
+  TwoFactorEnabled boolean NOT NULL,
+  LockoutEnd timestamp with time zone,
+  LockoutEnabled boolean NOT NULL,
+  AccessFailedCount integer NOT NULL,
+  CONSTRAINT AspNetUsers_pkey PRIMARY KEY (Id)
+);
+CREATE TABLE public.Galleries (
+  Id uuid NOT NULL,
+  EventName character varying NOT NULL,
+  CustomerEmail text NOT NULL,
+  AccessPin character varying NOT NULL,
+  CanDownload boolean NOT NULL,
+  IsPublished boolean NOT NULL,
+  CreatedAt timestamp with time zone NOT NULL,
+  PublishedAt timestamp with time zone,
+  PhotographerId text NOT NULL,
+  OwnerId text,
+  CONSTRAINT Galleries_pkey PRIMARY KEY (Id),
+  CONSTRAINT FK_Galleries_AspNetUsers_OwnerId FOREIGN KEY (OwnerId) REFERENCES public.AspNetUsers(Id)
+);
+CREATE TABLE public.AspNetRoleClaims (
+  Id integer GENERATED ALWAYS AS IDENTITY NOT NULL,
+  RoleId text NOT NULL,
+  ClaimType text,
+  ClaimValue text,
+  CONSTRAINT AspNetRoleClaims_pkey PRIMARY KEY (Id),
+  CONSTRAINT FK_AspNetRoleClaims_AspNetRoles_RoleId FOREIGN KEY (RoleId) REFERENCES public.AspNetRoles(Id)
+);
+CREATE TABLE public.AspNetUserClaims (
+  Id integer GENERATED ALWAYS AS IDENTITY NOT NULL,
+  UserId text NOT NULL,
+  ClaimType text,
+  ClaimValue text,
+  CONSTRAINT AspNetUserClaims_pkey PRIMARY KEY (Id),
+  CONSTRAINT FK_AspNetUserClaims_AspNetUsers_UserId FOREIGN KEY (UserId) REFERENCES public.AspNetUsers(Id)
+);
+CREATE TABLE public.AspNetUserLogins (
+  LoginProvider text NOT NULL,
+  ProviderKey text NOT NULL,
+  ProviderDisplayName text,
+  UserId text NOT NULL,
+  CONSTRAINT AspNetUserLogins_pkey PRIMARY KEY (LoginProvider, ProviderKey),
+  CONSTRAINT FK_AspNetUserLogins_AspNetUsers_UserId FOREIGN KEY (UserId) REFERENCES public.AspNetUsers(Id)
+);
+CREATE TABLE public.AspNetUserRoles (
+  UserId text NOT NULL,
+  RoleId text NOT NULL,
+  CONSTRAINT AspNetUserRoles_pkey PRIMARY KEY (UserId, RoleId),
+  CONSTRAINT FK_AspNetUserRoles_AspNetRoles_RoleId FOREIGN KEY (RoleId) REFERENCES public.AspNetRoles(Id),
+  CONSTRAINT FK_AspNetUserRoles_AspNetUsers_UserId FOREIGN KEY (UserId) REFERENCES public.AspNetUsers(Id)
+);
+CREATE TABLE public.AspNetUserTokens (
+  UserId text NOT NULL,
+  LoginProvider text NOT NULL,
+  Name text NOT NULL,
+  Value text,
+  CONSTRAINT AspNetUserTokens_pkey PRIMARY KEY (UserId, LoginProvider, Name),
+  CONSTRAINT FK_AspNetUserTokens_AspNetUsers_UserId FOREIGN KEY (UserId) REFERENCES public.AspNetUsers(Id)
+);
+CREATE TABLE public.Photos (
+  Id integer GENERATED ALWAYS AS IDENTITY NOT NULL,
+  GalleryId uuid NOT NULL,
+  BlobUrl text NOT NULL,
+  FileName text NOT NULL,
+  FileSize bigint NOT NULL,
+  UploadedAt timestamp with time zone NOT NULL,
+  CONSTRAINT Photos_pkey PRIMARY KEY (Id),
+  CONSTRAINT FK_Photos_Galleries_GalleryId FOREIGN KEY (GalleryId) REFERENCES public.Galleries(Id)
+);
+
 
 
 
