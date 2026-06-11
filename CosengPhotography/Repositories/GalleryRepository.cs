@@ -58,7 +58,7 @@ namespace CosengPhotography.Repositories
                     photoEntities.Add(new Photo
                     {
                         GalleryId = galleryId,
-                        BlobUrl = relativeUrl,                                                                         
+                        BlobUrl = relativeUrl,
                         FileName = item.Metadata.FileName,
                         FileSize = item.Metadata.FileSize,
                         UploadedAt = DateTime.UtcNow
@@ -74,9 +74,16 @@ namespace CosengPhotography.Repositories
             if (photoEntities.Any())
             {
                 await _context.Photos.AddRangeAsync(photoEntities);
-                await _context.SaveChangesAsync();
+                var dbGallery = await _context.Galleries.FindAsync(galleryId);
+                if (dbGallery != null)
+                {
+                    dbGallery.IsPublished = true;
+                    dbGallery.PublishedAt = DateTime.UtcNow;
+                }
+                    await _context.SaveChangesAsync();
             }
-        }
+        } // Good practice to keep track of when it went live!
+           
 
         public async Task<List<string>> DeleteGalleryAsync(Guid galleryId, string photographerId, bool isAdmin)
         {
