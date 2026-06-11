@@ -39,7 +39,7 @@ namespace CosengPhotography.Services
                 var fileName = Path.GetFileName(file.FileName);
 
                 // Streams directly to Cloudflare R2 / AWS S3 / Supabase Storage Storage Bucket
-                string uploadedBlobUrl = await _blobService.UploadFileAsync(fileStream, fileName);
+                string uploadedBlobUrl = await _blobService.UploadFileAsync(fileStream, fileName, galleryId);
 
                 payload.Photos.Add(new UploadedPhotoMetadataDto
                 {
@@ -60,8 +60,29 @@ namespace CosengPhotography.Services
             return currentGalleryState;
         }
 
-        public async Task DeleteGalleryAsync(Guid galleryId, string photographerId, bool isAdmin) =>
-            await _galleryRepository.DeleteGalleryAsync(galleryId, photographerId, isAdmin);
+        public async Task DeleteGalleryAsync(Guid galleryId, string photographerId, bool isAdmin)
+        {
+            // 1. Tell the repository to delete the database records and return the file URLs
+            List<string> photoUrls = await _galleryRepository.DeleteGalleryAsync(galleryId, photographerId, isAdmin);
+
+            // 2. If the deleted gallery contained photos, drop the cleanup payload into our background queue!
+            if (photoUrls != null && photoUrls.Any())
+            {
+                var cleanupPhotosList = photoUrls.Select(url => new UploadedPhotoMetadataDto
+                {
+                    BlobUrl = url
+                }).ToList();
+
+                var cleanupPayload = new PhotoProcessingPayloadDto
+                {
+                    GalleryId = galleryId,
+                    Photos = cleanupPhotosList
+                };
+
+                // Hand off the slow cloud erasure work to the background channel instantly
+                await _taskQueue.QueueUploadTaskAsync(cleanupPayload);
+            }
+        }
 
         public async Task<GalleryDto?> GetGalleryByLinkAsync(Guid shareId) =>
             await _galleryRepository.GetGalleryByLinkAsync(shareId);

@@ -53,12 +53,12 @@ namespace CosengPhotography.Repositories
             {
                 try
                 {
-                    string relativeUrl = await _blobService.UploadFileAsync(item.FileStream, item.Metadata.FileName);
+                    string relativeUrl = await _blobService.UploadFileAsync(item.FileStream, item.Metadata.FileName, galleryId);
 
                     photoEntities.Add(new Photo
                     {
                         GalleryId = galleryId,
-                        BlobUrl = relativeUrl,
+                        BlobUrl = relativeUrl,                                                                         
                         FileName = item.Metadata.FileName,
                         FileSize = item.Metadata.FileSize,
                         UploadedAt = DateTime.UtcNow
@@ -78,7 +78,7 @@ namespace CosengPhotography.Repositories
             }
         }
 
-        public async Task DeleteGalleryAsync(Guid galleryId, string photographerId, bool isAdmin)
+        public async Task<List<string>> DeleteGalleryAsync(Guid galleryId, string photographerId, bool isAdmin)
         {
             var gallery = await _context.Galleries.FirstOrDefaultAsync(g => g.Id == galleryId);
             if (gallery == null) throw new KeyNotFoundException("Gallery record not found.");
@@ -98,7 +98,8 @@ namespace CosengPhotography.Repositories
 
             _context.Galleries.Remove(gallery);
             await _context.SaveChangesAsync();
-        }
+            return photoUrls;
+                   }
 
         public async Task<List<GalleryDto>> GetAllGalleriesAsync(string photographerId, bool isAdmin)
         {

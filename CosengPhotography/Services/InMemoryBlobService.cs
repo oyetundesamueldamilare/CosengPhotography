@@ -1,5 +1,6 @@
 ﻿    using CosengPhotography.Interfaces;
-    using System.Collections.Concurrent;
+using CosengPhotography.Shared.Dtos;
+using System.Collections.Concurrent;
 
     namespace CosengPhotography.Services
     {
@@ -15,9 +16,10 @@
                 _logger = logger;
             }
 
-            public async Task<string> UploadFileAsync(Stream fileStream, string fileName)
+            public async Task<string> UploadFileAsync(Stream fileStream, string fileName, Guid galleryId)
             {
-                var uniqueFileName = $"{Guid.NewGuid()}_{fileName}";
+             // Simulate a gallery context for unique naming
+            var uniqueFileName = $"{galleryId}_{fileName}";
 
                 try
                 {

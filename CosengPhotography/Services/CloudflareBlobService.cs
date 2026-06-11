@@ -1,5 +1,6 @@
-﻿using System.Net.Http.Headers;
-using CosengPhotography.Interfaces;
+﻿using CosengPhotography.Interfaces;
+using CosengPhotography.Shared.Dtos;
+using System.Net.Http.Headers;
 
 namespace CosengPhotography.Services
 {
@@ -34,14 +35,14 @@ namespace CosengPhotography.Services
         /// <summary>
         /// Streams a photographer's uploaded file straight into your Cloudflare R2 container space using native HTTP PUT.
         /// </summary>
-        public async Task<string> UploadFileAsync(Stream fileStream, string fileName)
+        public async Task<string> UploadFileAsync(Stream fileStream, string fileName, Guid galleryId)
         {
             if (fileStream.CanSeek && fileStream.Position != 0)
             {
                 fileStream.Position = 0;
             }
 
-            string uniqueKey = $"{Guid.NewGuid()}_{Path.GetFileName(fileName)}";
+            string uniqueKey = $"{galleryId}_{Path.GetFileName(fileName)}";
             string requestUrl = $"{_bucketUrl}/{uniqueKey}";
 
             try

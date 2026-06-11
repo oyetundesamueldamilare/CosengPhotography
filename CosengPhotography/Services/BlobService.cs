@@ -1,6 +1,7 @@
 ﻿using Amazon.S3;
 using Amazon.S3.Model;
 using CosengPhotography.Interfaces;
+using CosengPhotography.Shared.Dtos;
 
 namespace CosengPhotography.Services
 {
@@ -21,7 +22,7 @@ namespace CosengPhotography.Services
         /// <summary>
         /// Streams a photographer's uploaded file straight into your Amazon S3 Bucket container space.
         /// </summary>
-        public async Task<string> UploadFileAsync(Stream fileStream, string fileName)
+        public async Task<string> UploadFileAsync(Stream fileStream, string fileName,Guid galleryId)
         {
             // Ensure the incoming network stream index pointer is set to the beginning
             if (fileStream.CanSeek && fileStream.Position != 0)
@@ -30,7 +31,7 @@ namespace CosengPhotography.Services
             }
 
             // Create a unique object key prefix to prevent file naming namespace collisions in S3
-            string uniqueKey = $"{Guid.NewGuid()}_{Path.GetFileName(fileName)}";
+            string uniqueKey = $"{galleryId}_{Path.GetFileName(fileName)}";
 
             try
             {
@@ -118,25 +119,3 @@ namespace CosengPhotography.Services
         }
     }
 }
-        //public string GetSasToken(string containerName, string blobName, TimeSpan validFor)
-        //{
-        //    var blobServiceClient = new BlobServiceClient(_connectionString);
-        //    var containerClient = blobServiceClient.GetBlobContainerClient(containerName);
-        //    var blobClient = containerClient.GetBlobClient(blobName);
-
-        //    var sasBuilder = new BlobSasBuilder
-        //    {
-        //        BlobContainerName = containerName,
-        //        BlobName = blobName,
-        //        Resource = "b", // b = blob
-        //        ExpiresOn = DateTimeOffset.UtcNow.Add(validFor)
-        //    };
-
-        //    sasBuilder.SetPermissions(BlobSasPermissions.Read);
-
-        //    var sasToken = sasBuilder.ToSasQueryParameters(new StorageSharedKeyCredential(
-        //        _accountName, _accountKey)).ToString();
-
-        //    return $"{blobClient.Uri}?{sasToken}";
-        //}
-
