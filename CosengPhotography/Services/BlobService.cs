@@ -64,9 +64,9 @@ namespace CosengPhotography.Services
         /// <summary>
         /// Generates an encrypted, temporary pre-signed URL for high-res asset access windows.
         /// </summary>
-        public async Task<string> GetSecureUrlAsync(string blobUrlOrKey)
+        public async Task<string> GetSecureUrlAsync(string blobKey, string? originalFileName = null)
         {
-            _logger.LogDebug("Generating secure pre-signed URL window for S3 Object Key: {Key}", blobUrlOrKey);
+            _logger.LogDebug("Generating secure pre-signed URL window for S3 Object Key: {Key}", blobKey);
 
             try
             {
@@ -75,7 +75,7 @@ namespace CosengPhotography.Services
                 var urlRequest = new GetPreSignedUrlRequest
                 {
                     BucketName = _bucketName,
-                    Key = blobUrlOrKey,
+                    Key = blobKey,
                     Expires = expiryWindow,
                     Verb = HttpVerb.GET
                 };
@@ -86,11 +86,29 @@ namespace CosengPhotography.Services
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to generate a pre-signed S3 download URL for key {Key}", blobUrlOrKey);
+                _logger.LogError(ex, "Failed to generate a pre-signed S3 download URL for key {Key}", blobKey);
                 throw;
             }
         }
 
+        public Task<Stream> GetFileStreamAsync(string blobKey)
+        {
+            try
+            {
+                var getRequest = new GetObjectRequest
+                {
+                    BucketName = _bucketName,
+                    Key = blobKey
+                };
+                var response = _s3Client.GetObjectAsync(getRequest).Result;
+                return Task.FromResult(response.ResponseStream);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to retrieve file stream for S3 object key {Key}", blobKey);
+                throw;
+            }
+        }
         /// <summary>
         /// Removes the targeted object file path permanently from your active cloud bucket.
         /// </summary>

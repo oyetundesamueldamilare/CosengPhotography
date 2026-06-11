@@ -1,6 +1,12 @@
 ﻿using CosengPhotography.Interfaces;
-using CosengPhotography.Shared.Dtos;
+using Microsoft.AspNetCore.StaticFiles;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
+using System;
+using System.IO;
+using System.Net.Http;
 using System.Net.Http.Headers;
+using System.Threading.Tasks;
 
 namespace CosengPhotography.Services
 {
@@ -8,6 +14,8 @@ namespace CosengPhotography.Services
     {
         private readonly HttpClient _httpClient;
         private readonly ILogger<CloudflareBlobService> _logger;
+        private readonly FileExtensionContentTypeProvider _contentTypeProvider;
+
         private readonly string _bucketUrl;
         private readonly string _apiToken;
         private readonly string _publicDomainPrefix;
@@ -16,84 +24,121 @@ namespace CosengPhotography.Services
         {
             _httpClient = httpClient;
             _logger = logger;
+            _contentTypeProvider = new FileExtensionContentTypeProvider();
 
             var accountId = configuration["Cloudflare:AccountId"]
-                ?? throw new ArgumentNullException("Cloudflare AccountId is missing from configurations.");
+                ?? throw new ArgumentNullException(nameof(configuration), "Cloudflare AccountId is missing from configurations.");
             var bucketName = configuration["Cloudflare:BucketName"]
-                ?? throw new ArgumentNullException("Cloudflare BucketName is missing from configurations.");
+                ?? throw new ArgumentNullException(nameof(configuration), "Cloudflare BucketName is missing from configurations.");
 
             _apiToken = configuration["Cloudflare:ApiToken"]
-                ?? throw new ArgumentNullException("Cloudflare ApiToken is missing from configurations.");
+                ?? throw new ArgumentNullException(nameof(configuration), "Cloudflare ApiToken is missing from configurations.");
 
-            // Base public CDN or R2 dev subdomain URL for reading files (e.g., https://pub-xyz.r2.dev)
             _publicDomainPrefix = configuration["Cloudflare:PublicDomainPrefix"] ?? "";
 
-            // Target endpoint for direct REST mutations on Cloudflare storage infrastructure
+            // Base endpoint for Cloudflare R2 Workers/REST API operational mapping
             _bucketUrl = $"https://api.cloudflare.com/client/v4/accounts/{accountId}/r2/buckets/{bucketName}/objects";
         }
 
         /// <summary>
         /// Streams a photographer's uploaded file straight into your Cloudflare R2 container space using native HTTP PUT.
         /// </summary>
+
+        public async Task<Stream> GetFileStreamAsync(string blobKey)
+        {
+            string requestUrl = $"{_bucketUrl}/{Uri.EscapeDataString(blobKey)}";
+
+            var request = new HttpRequestMessage(HttpMethod.Get, requestUrl);
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _apiToken);
+
+            var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead);
+            response.EnsureSuccessStatusCode();
+
+            // Caller must dispose the returned stream
+            return await response.Content.ReadAsStreamAsync();
+        }
+
         public async Task<string> UploadFileAsync(Stream fileStream, string fileName, Guid galleryId)
         {
+            if (fileStream == null) throw new ArgumentNullException(nameof(fileStream));
+            if (string.IsNullOrWhiteSpace(fileName)) throw new ArgumentException("Filename cannot be blank.", nameof(fileName));
+
             if (fileStream.CanSeek && fileStream.Position != 0)
             {
                 fileStream.Position = 0;
             }
 
+            // Build the predictable lookup composite key format
             string uniqueKey = $"{galleryId}_{Path.GetFileName(fileName)}";
-            string requestUrl = $"{_bucketUrl}/{uniqueKey}";
+            string requestUrl = $"{_bucketUrl}/{Uri.EscapeDataString(uniqueKey)}";
 
             try
             {
                 using var request = new HttpRequestMessage(HttpMethod.Put, requestUrl);
 
-                // Authorize using Cloudflare API Token credentials
+                // Credentials authorization
                 request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _apiToken);
 
-                // Attach raw streaming bytes directly to the outgoing body content context
+                // Streaming implementation optimized for larger multi-part files
                 request.Content = new StreamContent(fileStream);
 
-                // Map the content header dynamically based on standard image signatures
-                request.Content.Headers.ContentType = new MediaTypeHeaderValue("image/jpeg");
+                // FIXED: Resolve the Mime Type dynamically based on file format extension context
+                if (!_contentTypeProvider.TryGetContentType(fileName, out var contentType))
+                {
+                    contentType = "application/octet-stream"; // Safe raw binary fallback
+                }
+                request.Content.Headers.ContentType = new MediaTypeHeaderValue(contentType);
 
-                var response = await _httpClient.SendAsync(request);
+                // Use HttpCompletionOption.ResponseHeadersRead to minimize memory footprint allocations
+                using var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead);
                 response.EnsureSuccessStatusCode();
 
-                _logger.LogInformation("File {FileName} uploaded successfully to Cloudflare R2 with Key: {Key}", fileName, uniqueKey);
+                _logger.LogInformation("Asset structural matrix written successfully to Cloudflare R2. Key: {Key}", uniqueKey);
 
                 return uniqueKey;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to upload file {FileName} to Cloudflare R2 via REST API", fileName);
+                _logger.LogError(ex, "Failed to upload file {FileName} to Cloudflare R2 via REST API infrastructure", fileName);
                 throw;
             }
         }
 
         /// <summary>
         /// Generates an absolute asset access path routing via your Cloudflare edge pipeline.
+        /// If an original name is supplied, it provides a secure download link with download forcing headers.
         /// </summary>
-        public async Task<string> GetSecureUrlAsync(string blobUrlOrKey)
+        public async Task<string> GetSecureUrlAsync(string blobKey, string? originalFileName = null)
         {
-            _logger.LogDebug("Resolving asset delivery route for Cloudflare Object Key: {Key}", blobUrlOrKey);
+            if (string.IsNullOrEmpty(blobKey)) throw new ArgumentNullException(nameof(blobKey));
+
+            _logger.LogDebug("Resolving asset delivery route for Cloudflare Object Key: {Key}", blobKey);
 
             try
             {
-                // If you leverage Cloudflare's tokenized access rules or a public dev domain setup:
-                if (!string.IsNullOrEmpty(_publicDomainPrefix))
+                // Clean the blob key if a full URL path accidentally gets slipped into parameters
+                string cleanKey = blobKey.Contains("/") ? Path.GetFileName(blobKey) : blobKey;
+
+                // APPROACH A: If a clean presentation filename is present, generate download disposition headers
+                if (!string.IsNullOrEmpty(originalFileName))
                 {
-                    string absoluteCdnPath = $"{_publicDomainPrefix.TrimEnd('/')}/{blobUrlOrKey}";
-                    return await Task.FromResult(absoluteCdnPath);
+                    // If you are using Cloudflare Workers or pre-signed URL parameter mechanisms, override here.
+                    // For typical secure CDN endpoints passing query overrides:
+                    string downloadCdnPath = $"{_publicDomainPrefix.TrimEnd('/')}/{Uri.EscapeDataString(cleanKey)}?response-content-disposition=attachment;filename=\"{Uri.EscapeDataString(originalFileName)}\"";
+                    return await Task.FromResult(downloadCdnPath);
                 }
 
-                // Fallback direct endpoint string if routing directly via the raw storage footprint
-                return await Task.FromResult($"{_bucketUrl}/{blobUrlOrKey}");
+                // APPROACH B: Standard asset pathway mapping for loading/viewing directly within Blazor <img> grids
+                if (!string.IsNullOrEmpty(_publicDomainPrefix))
+                {
+                    return await Task.FromResult($"{_publicDomainPrefix.TrimEnd('/')}/{Uri.EscapeDataString(cleanKey)}");
+                }
+
+                return await Task.FromResult($"{_bucketUrl}/{Uri.EscapeDataString(cleanKey)}");
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to build Cloudflare asset path route for key {Key}", blobUrlOrKey);
+                _logger.LogError(ex, "Failed to build Cloudflare asset path route for key {Key}", blobKey);
                 throw;
             }
         }
@@ -107,20 +152,22 @@ namespace CosengPhotography.Services
 
             try
             {
-                var targetKey = Path.GetFileName(blobUrlOrKey);
-                string requestUrl = $"{_bucketUrl}/{targetKey}";
+                // Ensure we parse out just the base unique key name string safely
+                string targetKey = blobUrlOrKey.Contains("/") ? Path.GetFileName(blobUrlOrKey) : blobUrlOrKey;
+                string requestUrl = $"{_bucketUrl}/{Uri.EscapeDataString(targetKey)}";
 
                 using var request = new HttpRequestMessage(HttpMethod.Delete, requestUrl);
                 request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _apiToken);
 
-                var response = await _httpClient.SendAsync(request);
+                using var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead);
                 response.EnsureSuccessStatusCode();
 
-                _logger.LogInformation("Successfully deleted Cloudflare object key {Key} from bucket infrastructure", targetKey);
+                _logger.LogInformation("Successfully dropped object key {Key} from Cloudflare infrastructure records.", targetKey);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to purge file {BlobUrlOrKey} from Cloudflare R2 infrastructure logs", blobUrlOrKey);
+                _logger.LogError(ex, "Failed to purge file key {BlobUrlOrKey} from Cloudflare storage engine contexts.", blobUrlOrKey);
+                throw;
             }
         }
     }

@@ -94,5 +94,8 @@ namespace CosengPhotography.Services
 
         public async Task<List<GalleryDto>> GetAllGalleriesAsync(string photographerId, bool isAdmin) =>
             await _galleryRepository.GetAllGalleriesAsync(photographerId, isAdmin);
+
+        public async Task<(Stream FileStream, string FileName)> GetPhotoStreamAsync(int photoId) =>
+            await _galleryRepository.GetPhotoStreamAsync(photoId);
     }
 }

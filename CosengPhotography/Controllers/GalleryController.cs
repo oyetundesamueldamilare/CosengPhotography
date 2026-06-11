@@ -1,4 +1,5 @@
 ﻿using CosengPhotography.Interfaces;
+using CosengPhotography.Repositories;
 using CosengPhotography.Services;
 using CosengPhotography.Shared.Dtos;
 using Microsoft.AspNetCore.Authorization;
@@ -107,25 +108,39 @@ namespace CosengPhotography.Controllers
             return Ok(gallery);
         }
 
+
         [HttpGet("download/{photoId:int}")]
         [AllowAnonymous]
         public async Task<IActionResult> GetPhotoDownloadLink(int photoId)
         {
             try
             {
-                var downloadUrl = await _galleryService.GetDownloadLinkAsync(photoId);
-                return Ok(new { Url = downloadUrl });
+                // 1. Fetch the direct stream payload and filename from your repository layer
+                var (fileStream, fileName) = await _galleryService.GetPhotoStreamAsync(photoId);
+
+                // 2. Detect MIME type based on file extension
+                var provider = new Microsoft.AspNetCore.StaticFiles.FileExtensionContentTypeProvider();
+                if (!provider.TryGetContentType(fileName, out var contentType))
+                {
+                    contentType = "application/octet-stream"; // fallback if unknown
+                }
+
+                // 3. Return the file stream with proper headers
+                return File(fileStream, contentType, fileName);
             }
-            catch (KeyNotFoundException)
+            catch (KeyNotFoundException ex)
             {
-                return NotFound(new { Message = "The requested photo could not be located." });
+                _logger.LogWarning("Photo metadata record missing: {Message}", ex.Message);
+                return NotFound(new { Message = ex.Message });
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error generating download path for photo item {PhotoId}", photoId);
-                return StatusCode(500, new { Message = "Could not retrieve file download link." });
+                _logger.LogError(ex, "Error processing direct cloud stream for photo item {PhotoId}", photoId);
+                return StatusCode(500, new { Message = "An internal error occurred while streaming the file download." });
             }
         }
+
+
 
         [HttpGet]
         [Authorize(Roles = "Admin, Photographer")]
