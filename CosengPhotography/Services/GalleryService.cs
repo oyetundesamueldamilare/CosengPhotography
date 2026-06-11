@@ -57,7 +57,9 @@ namespace CosengPhotography.Services
             var currentGalleryState = await _galleryRepository.GetGalleryByLinkAsync(galleryId);
             if (currentGalleryState == null) throw new KeyNotFoundException("Gallery instance not found.");
 
+        
             return currentGalleryState;
+            
         }
 
         public async Task DeleteGalleryAsync(Guid galleryId, string photographerId, bool isAdmin)
