@@ -144,6 +144,24 @@ namespace CosengPhotography.Frontend.Services
             throw new Exception($"[Gallery Retrieval Error] Server responded with code {(int)response.StatusCode}: {error}");
         }
 
+        public async Task<Stream> DownloadPhotoAsync(Guid photoId)
+        {
+            // If your download route requires a logged-in user, uncomment this line:
+            // AttachAuthorizationHeader();
+
+            // Calls your backend controller endpoint
+            var response = await _http.GetAsync($"api/gallery/download/{photoId}");
+
+            if (response.IsSuccessStatusCode)
+            {
+                // Returns the raw file binary stream directly to your Blazor component
+                return await response.Content.ReadAsStreamAsync();
+            }
+
+            var error = await response.Content.ReadAsStringAsync();
+            throw new Exception($"Download failed. Server responded with: {error}");
+        }
+
         // =========================================================================
         // PRIVATE UTILITY LIFECYCLES
         // =========================================================================

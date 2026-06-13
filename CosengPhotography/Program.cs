@@ -9,6 +9,8 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using System.DirectoryServices.Protocols;
+using System.Net;
 using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -154,7 +156,8 @@ builder.Services.AddCors(options =>
                   .AllowAnyHeader();
         }
     });
-});
+}); 
+
 
 var app = builder.Build();
 
