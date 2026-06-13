@@ -1,4 +1,4 @@
-﻿using CosengPhotography.Data; // Ensure your AppDbContext namespace is imported
+﻿using CosengPhotography.Data;
 using CosengPhotography.Interfaces;
 using CosengPhotography.Models;
 using CosengPhotography.Shared.Dtos;
@@ -12,7 +12,7 @@ namespace CosengPhotography.Services
         private readonly UserManager<AppUser> _userManager;
         private readonly RoleManager<IdentityRole> _roleManager;
         private readonly IJwtTokenService _jwtTokenService;
-        private readonly AppDbContext _context; // Injecting context to manage transactions
+        private readonly AppDbContext _context;
 
         public AuthService(
             UserManager<AppUser> userManager,
@@ -33,10 +33,8 @@ namespace CosengPhotography.Services
                 return IdentityResult.Failed(new IdentityError { Description = $"Role '{model.Role}' does not exist." });
             }
 
-            // 1. Get the configured execution strategy (NpgsqlRetryingExecutionStrategy)
             var strategy = _context.Database.CreateExecutionStrategy();
 
-            // 2. Execute the entire transaction block inside the strategy
             return await strategy.ExecuteAsync(async () =>
             {
                 using var transaction = await _context.Database.BeginTransactionAsync();
@@ -68,7 +66,7 @@ namespace CosengPhotography.Services
                 catch (Exception)
                 {
                     await transaction.RollbackAsync();
-                    throw; // Retrying strategy catches this and knows whether to try again
+                    throw;
                 }
             });
         }
@@ -82,6 +80,34 @@ namespace CosengPhotography.Services
             }
 
             return await _jwtTokenService.GenerateTokenAsync(user);
+        }
+
+        public async Task<IdentityResult> ChangePasswordAsync(string email, string currentPassword, string newPassword)
+        {
+            var user = await _userManager.FindByEmailAsync(email);
+            if (user == null)
+            {
+                return IdentityResult.Failed(new IdentityError { Description = "User not found." });
+            }
+
+            var result = await _userManager.ChangePasswordAsync(user, currentPassword, newPassword);
+            return result;
+        }
+
+        public async Task<bool> LogoutAsync(string email)
+        {
+            var user = await _userManager.FindByEmailAsync(email);
+            if (user == null)
+            {
+                return false; // User not found
+            }
+
+            // If you’re using refresh tokens, revoke them here
+            // Example: await _jwtTokenService.RevokeRefreshTokensAsync(user);
+
+            // With JWT, logout is usually client-side (remove token).
+            // Returning true indicates the server acknowledges logout.
+            return true;
         }
     }
 }

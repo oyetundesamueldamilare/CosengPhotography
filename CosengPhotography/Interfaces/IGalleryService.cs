@@ -10,5 +10,7 @@ namespace CosengPhotography.Interfaces
         Task<GalleryDto?> GetGalleryByLinkAsync(Guid shareId);
         Task<string> GetDownloadLinkAsync(int photoId);
         Task<List<GalleryDto>> GetAllGalleriesAsync(string photographerId, bool isAdmin);
+
+        Task<(Stream FileStream, string FileName)> GetPhotoStreamAsync(int photoId);
     }
 }

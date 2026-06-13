@@ -2,6 +2,7 @@
 @using CosengPhotography.Shared.Dtos
 @using CosengPhotography.Frontend.Services
 @inject GalleryApiService ApiService
+@inject NavigationManager Navigation
 
 <div class="container mt-5" style="font-family: Arial, sans-serif;">
 
@@ -64,10 +65,11 @@
 
                             <div class="card-body p-2 d-flex justify-content-between align-items-center bg-white">
                                 <span class="text-muted small text-truncate" style="max-width: 150px;">@photo.FileName</span>
-                                <button class="btn btn-sm btn-outline-dark px-3"
-                                        @onclick="() => TriggerDownloadAsync(photo.Id, photo.FileName)">
+                                <a href="@Navigation.ToAbsoluteUri($"api/gallery/download/{photo.Id}")"
+                                   class="btn btn-sm btn-outline-dark px-3"
+                                   download="@photo.FileName">
                                     Download
-                                </button>
+                                </a>
                             </div>
                         </div>
                     </div>
@@ -125,7 +127,6 @@
             IsLoading = true;
             ErrorMessage = string.Empty;
 
-            // REFACTORED: Consumes your centralized service action method mapping
             ActiveGallery = await ApiService.GetGalleryByIdAsync(ShareId);
 
             if (ActiveGallery == null)
@@ -147,7 +148,6 @@
     {
         if (ActiveGallery == null) return;
 
-        // Verify user input pin context against database DTO instance string field
         if (EnteredPin == ActiveGallery.AccessPin)
         {
             IsUnlocked = true;
@@ -157,21 +157,6 @@
         {
             ErrorMessage = "Access Denied: The security entry PIN provided is invalid.";
             EnteredPin = string.Empty;
-        }
-    }
-
-    private async Task TriggerDownloadAsync(int photoId, string fileName)
-    {
-        try
-        {
-            // FUTURE WORK: If you haven't written the binary downstream byte array downloader yet,
-            // this can execute a direct Window Interop download run.
-            // For now, it pairs cleanly with your service method tracking.
-            SetNotificationMessage("Preparing stream data download payload...", false);
-        }
-        catch (Exception)
-        {
-            Console.WriteLine("Streaming transaction dropped during file delivery operation.");
         }
     }
 

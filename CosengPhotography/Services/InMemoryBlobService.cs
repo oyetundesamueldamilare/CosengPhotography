@@ -40,11 +40,21 @@ using System.Collections.Concurrent;
                     throw;
                 }
             }
+        public Task<Stream> GetFileStreamAsync(string blobKey) 
+        {
+            //if (_store.TryGetValue(blobKey, out byte[] fileBytes))
+            //{
+            //    var stream = new MemoryStream(fileBytes);
+            //    return Task.FromResult<Stream>(stream);
+            //}
 
-            public Task<string> GetSecureUrlAsync(string blobUrl)
-            {
-                _logger.LogDebug("Returning secure URL for {BlobUrl}", blobUrl);
-                return Task.FromResult(blobUrl);
+            throw new KeyNotFoundException($"File with key {blobKey} not found.");
+        }
+
+        public Task<string> GetSecureUrlAsync(string blobKey, string? originalFileName = null)
+        {
+                _logger.LogDebug("Returning secure URL for {BlobKey}", blobKey);
+                return Task.FromResult($"inmemory://{blobKey}");
             }
 
             public async Task DeleteFileAsync(string blobUrl)

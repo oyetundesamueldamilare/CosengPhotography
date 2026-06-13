@@ -152,13 +152,23 @@ namespace CosengPhotography.Repositories
 
         public async Task<string> GetDownloadLinkAsync(int photoId)
         {
-            var photo = await _context.Photos
-                .AsNoTracking()
-                .FirstOrDefaultAsync(p => p.Id == photoId);
+            // 1. Retrieve the photo details from your database ledger
+            var photo = await _context.Photos.FirstOrDefaultAsync(p => p.Id == photoId);
+            if (photo == null)
+            {
+                throw new KeyNotFoundException($"Photo item with ID {photoId} could not be resolved.");
+            }
 
-            if (photo == null) throw new KeyNotFoundException("Target photo item could not be found.");
+            // 2. Reconstruct the EXACT unique composite key used when written to Cloudflare R2
+            // Matches: "{galleryId}_{fileName}"
+            string uniqueBlobKey = $"{photo.GalleryId}_{photo.FileName}";
 
-            return await _blobService.GetSecureUrlAsync(photo.BlobUrl);
+            // 3. CONSUME REFACTORED BLOB SERVICE:
+            // Pass the structural unique storage key AND the target clean download filename.
+            // This ensures the custom 'response-content-disposition' query string is appended.
+            string secureDownloadCdnUrl = await _blobService.GetSecureUrlAsync(uniqueBlobKey, photo.FileName);
+
+            return secureDownloadCdnUrl;
         }
 
         private string GenerateRandomPin(int length)
@@ -166,6 +176,25 @@ namespace CosengPhotography.Repositories
             var bytes = new byte[length];
             RandomNumberGenerator.Fill(bytes);
             return string.Concat(bytes.Select(b => (b % 10).ToString()));
+        }
+
+        public async Task<(Stream FileStream, string FileName)> GetPhotoStreamAsync(int photoId)
+        {
+            // 1. Look up the photo from the database context
+            var photo = await _context.Photos.FirstOrDefaultAsync(p => p.Id == photoId);
+            if (photo == null)
+            {
+                throw new KeyNotFoundException($"Photo item with ID {photoId} could not be resolved.");
+            }
+
+            // 2. Reconstruct the exact lookup key format stored in Cloudflare R2
+            string uniqueBlobKey = $"{photo.GalleryId}_{photo.FileName}";
+
+            // 3. Consume the streaming method from your CloudflareBlobService
+            Stream fileStream = await _blobService.GetFileStreamAsync(uniqueBlobKey);
+
+            // 4. Return both the stream and the clean original filename for the controller
+            return (fileStream, photo.FileName);
         }
 
         private static GalleryDto MapToDto(Gallery gallery)
