@@ -1,80 +1,84 @@
 ﻿using CosengPhotography.Shared.Dtos;
 using CosengPhotography.Interfaces;
 using Microsoft.Extensions.Options;
-using MimeKit;
-using MailKit.Net.Smtp;
-using MailKit.Security;
-using CosengPhotography.Models;
+using Microsoft.Identity.Client;
+using System.Net.Http.Headers;
+using System.Text;
+using System.Text.Json;
 
 namespace CosengPhotography.Services
 {
-      public class EmailService : IEmailService
+    public class EmailService : IEmailService
     {
-        private readonly EmailSettings _emailSettings;
+        private readonly AzureAdSettings _azureAd;
+        private readonly GraphApiSettings _graphApi;
         private readonly ILogger<EmailService> _logger;
+        private readonly HttpClient _httpClient;
 
-        public EmailService(IOptions<EmailSettings> emailSettings, ILogger<EmailService> logger)
+        public EmailService(
+            IOptions<AzureAdSettings> azureAd,
+            IOptions<GraphApiSettings> graphApi,
+            ILogger<EmailService> logger,
+            HttpClient httpClient)
         {
-            _emailSettings = emailSettings.Value;
+            _azureAd = azureAd.Value;
+            _graphApi = graphApi.Value;
             _logger = logger;
+            _httpClient = httpClient;
         }
 
-        /// <summary>
-        /// General purpose method to send any textual or HTML email.
-        /// </summary>
+        private async Task<string> GetAccessTokenAsync()
+        {
+            var app = ConfidentialClientApplicationBuilder.Create(_azureAd.ClientId)
+                .WithClientSecret(_azureAd.ClientSecret)
+                .WithAuthority($"{_azureAd.Instance}{_azureAd.TenantId}")
+                .Build();
+
+            var result = await app.AcquireTokenForClient(new[] { $"https://graph.microsoft.com/.default" })
+                                  .ExecuteAsync();
+
+            return result.AccessToken;
+        }
+
         public async Task SendEmailAsync(string toEmail, string subject, string body)
         {
-            // Defensive Guard: Ensure configuration parameters exist before setting up the connection socket context
-            if (string.IsNullOrWhiteSpace(_emailSettings.SmtpServer) || string.IsNullOrWhiteSpace(_emailSettings.SenderEmail))
+            var token = await GetAccessTokenAsync();
+
+            _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+            var payload = new
             {
-                _logger.LogCritical("SMTP engine infrastructure values are completely missing from appsettings.json configuration pipelines.");
-                throw new InvalidOperationException("The core email delivery engine is unconfigured.");
-            }
-
-            var message = new MimeMessage();
-
-            // Set up sender and recipient identities via dynamic MimeKit mailbox mapping
-            message.From.Add(new MailboxAddress(_emailSettings.SenderName, _emailSettings.SenderEmail));
-            message.To.Add(new MailboxAddress("", toEmail));
-            message.Subject = subject;
-
-            var bodyBuilder = new BodyBuilder
-            {
-                HtmlBody = body
+                message = new
+                {
+                    subject = subject,
+                    body = new { contentType = "HTML", content = body },
+                    toRecipients = new[]
+                    {
+                        new { emailAddress = new { address = toEmail } }
+                    }
+                }
             };
-            message.Body = bodyBuilder.ToMessageBody();
 
-            using var client = new SmtpClient();
-            try
+            var json = JsonSerializer.Serialize(payload);
+            var content = new StringContent(json, Encoding.UTF8, "application/json");
+
+            var response = await _httpClient.PostAsync(
+                $"{_graphApi.BaseUrl}/users/{_graphApi.SenderEmail}/sendMail", content);
+
+            if (response.IsSuccessStatusCode)
             {
-                // Connect to the secure Mailtrap or live production server endpoint
-                await client.ConnectAsync(_emailSettings.SmtpServer, _emailSettings.Port, SecureSocketOptions.StartTls);
-
-                // Pass the authorized profile username string and secret password context
-                await client.AuthenticateAsync(_emailSettings.Username, _emailSettings.Password);
-
-                await client.SendAsync(message);
-                _logger.LogInformation("Core system email successfully transmitted to destination client: {Email}", toEmail);
+                _logger.LogInformation("Email successfully sent to {Email}", toEmail);
             }
-            catch (Exception ex)
+            else
             {
-                _logger.LogError(ex, "Failed to send system email to address context: {Email}", toEmail);
-                throw new Exception($"Failed to deliver email: {ex.Message}", ex);
-            }
-            finally
-            {
-                // Cleanly close out open socket pipelines 
-                await client.DisconnectAsync(true);
+                var error = await response.Content.ReadAsStringAsync();
+                _logger.LogError("Failed to send email: {Error}", error);
+                throw new Exception($"Graph API email send failed: {error}");
             }
         }
 
-        /// <summary>
-        /// Specialized method that builds the custom photography HTML card layouts and passes it to SendEmailAsync.
-        /// </summary>
         public async Task SendGalleryAccessEmailAsync(GalleryNotificationDto notification)
         {
-            _logger.LogInformation("Processing custom gallery layout delivery matrices for client: {Email}", notification.CustomerEmail);
-
             string subject = $"Your Photo Gallery is Ready! - {notification.EventName}";
 
             string htmlContent = $@"
@@ -92,17 +96,22 @@ namespace CosengPhotography.Services
                     <p style='font-size: 12px; color: #777;'>If you have any issues accessing your files, please reply directly to this email to reach your photographer.</p>
                 </div>";
 
-            try
-            {
-                // Reuses the freshly implemented core infrastructure method to do the actual transmitting
-                await SendEmailAsync(notification.CustomerEmail, subject, htmlContent);
-                _logger.LogInformation("Gallery access validation layout successfully passed off to mail socket handlers for {Email}", notification.CustomerEmail);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Gallery service layout pipeline failed to dispatch to core routing for {Email}", notification.CustomerEmail);
-                throw new InvalidOperationException("The email notification pipeline failed, but your gallery tracking remains secure.", ex);
-            }
+            await SendEmailAsync(notification.CustomerEmail, subject, htmlContent);
         }
+    }
+
+    public class AzureAdSettings
+    {
+        public required string Instance { get; set; }  
+        public required string TenantId { get; set; }
+        public required string ClientId { get; set; }
+        public required string ClientSecret { get; set; }
+    }
+
+    public class GraphApiSettings
+    {
+        public required string BaseUrl { get; set; }
+        public required string Scopes { get; set; } 
+        public required string SenderEmail { get; set; }
     }
 }
