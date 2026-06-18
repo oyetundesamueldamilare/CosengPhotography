@@ -8,17 +8,17 @@ using System.Text.Json;
 
 namespace CosengPhotography.Services
 {
-    public class EmailService : IEmailService
+    public class REmailService : IEmailService
     {
         private readonly AzureAdSettings _azureAd;
         private readonly GraphApiSettings _graphApi;
-        private readonly ILogger<EmailService> _logger;
+        private readonly ILogger<REmailService> _logger;
         private readonly HttpClient _httpClient;
 
-        public EmailService(
+        public REmailService(
             IOptions<AzureAdSettings> azureAd,
             IOptions<GraphApiSettings> graphApi,
-            ILogger<EmailService> logger,
+            ILogger<REmailService> logger,
             HttpClient httpClient)
         {
             _azureAd = azureAd.Value;
