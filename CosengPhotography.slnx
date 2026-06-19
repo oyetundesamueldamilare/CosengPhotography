@@ -1,4 +1,7 @@
 <Solution>
+  <Folder Name="/Solution Items/">
+    <File Path="Dockerfile" />
+  </Folder>
   <Project Path="CosengPhotography.Frontend/CosengPhotography.Frontend.csproj" Id="551cb2df-f7c9-472f-94b7-1b2fe4106091" />
   <Project Path="CosengPhotography.Shared/CosengPhotography.Shared.csproj" Id="8d3350d6-7f9a-43c6-a382-ab3ee3d25b4e" />
   <Project Path="CosengPhotography/CosengPhotography.csproj" />

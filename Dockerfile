@@ -1,34 +1,52 @@
-# Stage 1: Build
-FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+# ==========================================
+# STAGE 1: Compile the Blazor Frontend (WASM)
+# ==========================================
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build-frontend
 WORKDIR /src
 
-# Copy solution and restore
+# Copy solution and project file templates
+COPY *.sln .
+COPY CosengPhotography.Frontend/CosengPhotography.Frontend.csproj CosengPhotography.Frontend/
+
+# Restore dependencies for frontend
+RUN dotnet restore "CosengPhotography.Frontend/CosengPhotography.Frontend.csproj"
+
+# Copy full source and publish frontend static binaries
+COPY . .
+RUN dotnet publish "CosengPhotography.Frontend/CosengPhotography.Frontend.csproj" -c Release -o /app/frontend-publish
+
+# ==========================================
+# STAGE 2: Compile the Backend & Merge Layers
+# ==========================================
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build-backend
+WORKDIR /src
+
 COPY *.sln .
 COPY CosengPhotography/CosengPhotography.csproj CosengPhotography/
-COPY CosengPhotography.Frontend/CosengPhotography.Frontend.csproj CosengPhotography.Frontend/
-RUN dotnet restore
 
-# Build backend and frontend
+# Restore dependencies for backend
+RUN dotnet restore "CosengPhotography/CosengPhotography.csproj"
+
+# Copy full source and publish backend API executable
 COPY . .
-RUN dotnet publish CosengPhotography/CosengPhotography.csproj -c Release -o /app/backend
-RUN dotnet publish CosengPhotography.Frontend/CosengPhotography.Frontend.csproj -c Release -o /app/frontend
+RUN dotnet publish "CosengPhotography/CosengPhotography.csproj" -c Release -o /app/backend-publish
 
-# Stage 2: Runtime
+# CRITICAL STEP: Copy the static Blazor frontend compilation files directly into the Backend's wwwroot folder
+COPY --from=build-frontend /app/frontend-publish/wwwroot /app/backend-publish/wwwroot
+
+# ==========================================
+# STAGE 3: Final Lightweight Runtime Image
+# ==========================================
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
 
-# Copy published outputs
-COPY --from=build /app/backend ./backend
-COPY --from=build /app/frontend ./frontend
+# Copy the unified backend application bundle
+COPY --from=build-backend /app/backend-publish .
 
-# Install supervisor to run multiple processes
-RUN apt-get update && apt-get install -y supervisor
+# Render dynamically passes an injection port using the PORT environment variable.
+# We expose port 10000 instead of juggling separate local debug ports.
+ENV ASPNETCORE_URLS=http://+:10000
+EXPOSE 10000
 
-# Copy supervisor config
-COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
-
-# Expose ports (adjust as needed)
-EXPOSE 5192 5142
-
-# Start both apps
-CMD ["supervisord", "-n"]
+# Start the single unified backend web server engine
+ENTRYPOINT ["dotnet", "CosengPhotography.dll"]

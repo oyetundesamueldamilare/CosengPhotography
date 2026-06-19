@@ -189,6 +189,7 @@ _ = Task.Run(async () =>
         Console.WriteLine($"Background seeding failed silently: {ex.Message}");
     }
 });
+
 // =========================================================================
 // 9. MIDDLEWARE PIPELINE ROUTING
 // =========================================================================
@@ -197,9 +198,6 @@ if (app.Environment.IsDevelopment())
     app.UseSwagger();
     app.UseSwaggerUI(c =>
     {
-        // REMOVED: c.RoutePrefix = string.Empty;
-        // This ensures Swagger stays safely out of the root URL's way.
-        // Your backend index is free, and Swagger lives explicitly at: https://localhost:7075/swagger
         c.SwaggerEndpoint("/swagger/v1/swagger.json", "CosengPhotography API v1");
     });
 }
@@ -210,6 +208,13 @@ else
 }
 
 app.UseHttpsRedirection();
+
+// --- ADD THESE TWO LINES FOR UNIFIED PRODUCTION HOSTING ---
+// This tells the backend to serve the Blazor static asset files when running live on Render
+app.UseBlazorFrameworkFiles();
+app.UseStaticFiles();
+// ----------------------------------------------------------
+
 app.UseRouting();
 
 // CRITICAL PIPELINE ORDER: UseCors MUST execute before authentication layers are parsed
@@ -220,4 +225,42 @@ app.UseAuthorization();
 
 app.MapControllers();
 
+// --- ADD THIS FALLBACK ROUTE RIGHT HERE ---
+// If a user refreshes a page (like /view/gallery-id), this ensures the server redirects 
+// the routing context cleanly straight back into the Blazor WASM engine instead of throwing a 404.
+app.MapFallbackToFile("index.html");
+// ------------------------------------------
+
 app.Run();
+// =========================================================================
+// 9. MIDDLEWARE PIPELINE ROUTING
+// =========================================================================
+//if (app.Environment.IsDevelopment())
+//{
+//    app.UseSwagger();
+//    app.UseSwaggerUI(c =>
+//    {
+//        // REMOVED: c.RoutePrefix = string.Empty;
+//        // This ensures Swagger stays safely out of the root URL's way.
+//        // Your backend index is free, and Swagger lives explicitly at: https://localhost:7075/swagger
+//        c.SwaggerEndpoint("/swagger/v1/swagger.json", "CosengPhotography API v1");
+//    });
+//}
+//else
+//{
+//    app.UseExceptionHandler("/error");
+//    app.UseHsts();
+//}
+
+//app.UseHttpsRedirection();
+//app.UseRouting();
+
+//// CRITICAL PIPELINE ORDER: UseCors MUST execute before authentication layers are parsed
+//app.UseCors("AllowFrontend");
+
+//app.UseAuthentication();
+//app.UseAuthorization();
+
+//app.MapControllers();
+
+//app.Run();
