@@ -143,7 +143,7 @@ namespace CosengPhotography.Frontend.Services
         }
 
         // =========================================================================
-        // PUBLIC CONTENT RETRIEVAL PIPELINES
+        // PUBLIC CONTENT RETRIEVAL PIPELINES                        maekns
         // =========================================================================
         public async Task<GalleryDto> GetGalleryByIdAsync(Guid shareId)
         {
