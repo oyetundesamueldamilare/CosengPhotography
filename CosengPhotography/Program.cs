@@ -17,15 +17,12 @@ var builder = WebApplication.CreateBuilder(args);
 // =========================================================================
 // 1. DATABASE CONFIGURATION
 // =========================================================================
-//builder.Services.AddDbContext<AppDbContext>(options =>
-//    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+// Pulls standard connection string or Render environment equivalent
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
+    ?? builder.Configuration["ConnectionStrings_DefaultConnection"];
 
-// Register EF Core with Supabase Postgres
-// =========================================================================
-// 1. DATABASE CONFIGURATION
-// =========================================================================
 builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection"), npgsqlOptions =>
+    options.UseNpgsql(connectionString, npgsqlOptions =>
     {
         // Enables resilient connections to smooth out transient cloud network interruptions
         npgsqlOptions.EnableRetryOnFailure(
@@ -92,8 +89,13 @@ builder.Services.AddAuthentication(options =>
 })
 .AddJwtBearer(options =>
 {
+    // FIX: Fallback checks added to accept standard nested configurations OR single underscore environment models
     var jwtKey = builder.Configuration["Jwt:Key"]
-        ?? throw new InvalidOperationException("Configuration value 'Jwt:Key' is required.");
+        ?? builder.Configuration["Jwt_Key"]
+        ?? throw new InvalidOperationException("Configuration value 'Jwt:Key' or 'Jwt_Key' is required.");
+
+    var issuer = builder.Configuration["Jwt:Issuer"] ?? builder.Configuration["Jwt_Issuer"];
+    var audience = builder.Configuration["Jwt:Audience"] ?? builder.Configuration["Jwt_Audience"];
 
     options.TokenValidationParameters = new TokenValidationParameters
     {
@@ -101,8 +103,8 @@ builder.Services.AddAuthentication(options =>
         ValidateAudience = true,
         ValidateLifetime = true,
         ValidateIssuerSigningKey = true,
-        ValidIssuer = builder.Configuration["Jwt:Issuer"],
-        ValidAudience = builder.Configuration["Jwt:Audience"],
+        ValidIssuer = issuer,
+        ValidAudience = audience,
         IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey))
     };
 });
@@ -110,18 +112,17 @@ builder.Services.AddAuthentication(options =>
 // =========================================================================
 // 6. CUSTOM DEPENDENCY INJECTION MATRIX
 // =========================================================================
-
 // 1. Register the thread-safe Queue manager as a Singleton
 builder.Services.AddSingleton<IBackgroundEmailQueue, BackgroundEmailQueue>();
 
-// 2. CORRECT RESEND REGISTRATION (Points to the "Resend" section for the API Token)
+// 2. CORRECT RESEND REGISTRATION (Supports hierarchical section keys or flat single underscore keys)
 builder.Services.Configure<ResendClientOptions>(options =>
 {
     options.ApiToken = builder.Configuration["Resend:ApiKey"]
+        ?? builder.Configuration["Resend_ApiKey"]
         ?? throw new InvalidOperationException("Resend API Key is missing from configuration.");
 });
 
-// FIX: Point the binder explicitly to your new "EmailSettings" section header!
 builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("EmailSettings"));
 builder.Services.AddHttpClient<IResend, ResendClient>();
 
@@ -139,9 +140,8 @@ builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddHttpClient<CloudflareBlobService>();
 builder.Services.AddScoped<IBlobService, CloudflareBlobService>();
 
-
 // =========================================================================
-// 7. CORS POLICY (Corrected to target Frontend App Ports instead of itself)
+// 7. CORS POLICY (Maintained for Local Development compatibility)
 // =========================================================================
 builder.Services.AddCors(options =>
 {
@@ -149,7 +149,6 @@ builder.Services.AddCors(options =>
     {
         if (builder.Environment.IsDevelopment())
         {
-            // Allowed entries encompass standard Blazor dev server ports
             policy.WithOrigins("https://localhost:7111", "http://localhost:5142")
                   .AllowAnyMethod()
                   .AllowAnyHeader()
@@ -157,22 +156,20 @@ builder.Services.AddCors(options =>
         }
         else
         {
-            policy.WithOrigins("https://yourfrontend.com")
+            // Same-origin deployments handle this seamlessly, but we target the live domain to be pristine
+            policy.WithOrigins("https://cosengphotography.onrender.com")
                   .AllowAnyMethod()
                   .AllowAnyHeader();
         }
     });
-}); 
-
+});
 
 var app = builder.Build();
 
 // =========================================================================
-// 8. DATA SEEDING IMPLEMENTATION
+// 8. AUTOMATIC DATABASE MIGRATIONS & SEEDING ON STARTUP
 // =========================================================================
-// Ensure it's inside an explicit scope blocks sequence
-// WARM UP THE SERVER FIRST
-// Fire and forget the seeding logic so the port opens immediately!
+// Combined table preparation and seeding routine so data structures exist on the target platform
 _ = Task.Run(async () =>
 {
     try
@@ -180,13 +177,18 @@ _ = Task.Run(async () =>
         using var scope = app.Services.CreateScope();
         var services = scope.ServiceProvider;
 
+        // Ensure migrations run to create the schema tables before seeding checks occur
+        Console.WriteLine("Applying pending database schema migrations on the environment target...");
+        var dbContext = services.GetRequiredService<AppDbContext>();
+        await dbContext.Database.MigrateAsync();
+
         Console.WriteLine("Database seeding starting in the background...");
         await SeededRoleHelper.SeedRolesAndUsersAsync(services);
-        Console.WriteLine("Database seeding completed successfully.");
+        Console.WriteLine("Database environment successfully prepared and seeded.");
     }
     catch (Exception ex)
     {
-        Console.WriteLine($"Background seeding failed silently: {ex.Message}");
+        Console.WriteLine($"Background environment execution crashed: {ex.Message}");
     }
 });
 
@@ -209,31 +211,24 @@ else
 
 app.UseHttpsRedirection();
 
-// --- ADD THESE TWO LINES FOR UNIFIED PRODUCTION HOSTING ---
-// This tells the backend to serve the Blazor static asset files when running live on Render
+// Serves the unified Blazor WebAssembly static binary framework files
 app.UseBlazorFrameworkFiles();
+// Maps delivery pipelines for traditional static content folders (images, CSS, JS scripts)
 app.UseStaticFiles();
-// ----------------------------------------------------------
 
 app.UseRouting();
 
-// CRITICAL PIPELINE ORDER: UseCors MUST execute before authentication layers are parsed
+// Pipeline execution order matrix
 app.UseCors("AllowFrontend");
-
 app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
 
-// --- ADD THIS FALLBACK ROUTE RIGHT HERE ---
-// If a user refreshes a page (like /view/gallery-id), this ensures the server redirects 
-// the routing context cleanly straight back into the Blazor WASM engine instead of throwing a 404.
+// Cleanly catches page refreshes and maps context back to the client router framework
 app.MapFallbackToFile("index.html");
-// ------------------------------------------
 
 app.Run();
-
-
 // =========================================================================
 // 9. MIDDLEWARE PIPELINE ROUTING
 // =========================================================================
