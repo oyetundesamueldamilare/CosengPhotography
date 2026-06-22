@@ -23,7 +23,7 @@ else
 {
     // Hardcoded production backend API service URL on Render
     // Replace this string with your actual live Render Backend Web Service URL
-    targetBackendApiUrl = "https://cosengphotography-api.onrender.com/";
+    targetBackendApiUrl = "https://cosengphotography.onrender.com/";
 }
 
 builder.Services.AddScoped(sp => new HttpClient
