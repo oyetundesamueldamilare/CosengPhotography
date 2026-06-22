@@ -162,10 +162,11 @@
                                 <tbody>
                                     @foreach (var item in ExistingGalleries)
                                     {
+                                        var isThisResending = IsResendingMap.ContainsKey(item.Id) && IsResendingMap[item.Id];
                                         <tr>
                                             <td>
-                                                <strong class="d-block text-dark text-truncate" style="max-width: 220px;">@item.EventName</strong>
-                                                <span class="text-muted small d-block text-truncate" style="max-width: 220px;">@item.CustomerEmail</span>
+                                                <strong class="d-block text-dark text-truncate" style="max-width: 180px;">@item.EventName</strong>
+                                                <span class="text-muted small d-block text-truncate" style="max-width: 180px;">@item.CustomerEmail</span>
                                             </td>
                                             <td class="text-center">
                                                 <span class="badge bg-dark font-monospace px-2 py-1">@item.AccessPin</span>
@@ -173,7 +174,19 @@
                                             <td class="text-end">
                                                 <div class="btn-group btn-group-sm">
                                                     <a href="/view/@item.Id" target="_blank" class="btn btn-outline-dark">👁️ View</a>
-                                                    <button class="btn btn-outline-danger" @onclick="() => ConfirmDeleteAsync(item.Id)">🗑️ Drop</button>
+
+                                                    <button class="btn btn-outline-secondary" @onclick="() => ExecuteResendNotificationAsync(item.Id)" disabled="@(isThisResending || IsProcessing)">
+                                                        @if (isThisResending)
+                                                        {
+                                                            <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                                                        }
+                                                        else
+                                                        {
+                                                            <span>📬 Resend</span>
+                                                        }
+                                                    </button>
+
+                                                    <button class="btn btn-outline-danger" @onclick="() => ConfirmDeleteAsync(item.Id)" disabled="@isThisResending">🗑️ Drop</button>
                                                 </div>
                                             </td>
                                         </tr>
@@ -193,6 +206,9 @@
     private bool ShowRegisterView { get; set; } = false;
     private bool IsProcessing { get; set; }
     private bool IsLoadingHistory { get; set; } = false;
+
+    // Track localized loading state variations per row index
+    private Dictionary<Guid, bool> IsResendingMap { get; set; } = new();
 
     // Authentication Models - Set default role string explicitly so value defaults clean
     private RegisterDto RegisterModel { get; set; } = new() { Role = "Customer" };
@@ -356,6 +372,35 @@
         }
     }
 
+    private async Task ExecuteResendNotificationAsync(Guid galleryId)
+    {
+        try
+        {
+            // Set targeted spinner mapping active for this specific item row instance
+            IsResendingMap[galleryId] = true;
+            ClearStatus();
+
+            var success = await ApiService.ResendGalleryEmailAsync(galleryId);
+
+            if (success)
+            {
+                SetStatus("Notification email successfully re-dispatched to target client mailbox logs.", false);
+            }
+            else
+            {
+                SetStatus("Failed to complete manual mail resend payload dispatch.", true);
+            }
+        }
+        catch (Exception ex)
+        {
+            SetStatus($"Notification Interface Fault: {ex.Message}", true);
+        }
+        finally
+        {
+            IsResendingMap[galleryId] = false;
+        }
+    }
+
     private async Task ConfirmDeleteAsync(Guid galleryId)
     {
         try
@@ -386,6 +431,7 @@
         LoginModel = new();
         ExistingGalleries.Clear();
         CreatedGalleryId = null;
+        IsResendingMap.Clear();
         ClearStatus();
     }
 

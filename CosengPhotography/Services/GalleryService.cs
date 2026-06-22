@@ -9,17 +9,23 @@ namespace CosengPhotography.Services
         private readonly IBlobService _blobService; // Injected to decouple physical stream writes
         private readonly IGalleryTaskQueue _taskQueue; // Injected queue service
         private readonly ILogger<GalleryService> _logger;
+        private readonly IEmailService _emailService; // Injected email service for notification handling
+        private readonly IConfiguration _configuration; // For resolving dynamic configuration values
 
         public GalleryService(
             IGalleryRepository galleryRepository,
             IBlobService blobService,
             IGalleryTaskQueue taskQueue,
-            ILogger<GalleryService> logger)
+            ILogger<GalleryService> logger,
+            IEmailService emailService,
+            IConfiguration configuration)
         {
             _galleryRepository = galleryRepository;
             _blobService = blobService;
             _taskQueue = taskQueue;
             _logger = logger;
+            _emailService = emailService;
+            _configuration = configuration;
         }
 
         public async Task<GalleryDto> CreateGalleryAsync(GalleryCreateDto dto, string photographerId)
@@ -97,5 +103,40 @@ namespace CosengPhotography.Services
 
         public async Task<(Stream FileStream, string FileName)> GetPhotoStreamAsync(int photoId) =>
             await _galleryRepository.GetPhotoStreamAsync(photoId);
+        public async Task<bool> ResendGalleryNotificationAsync(Guid galleryId)
+        {
+            // 1. Fetch fresh data by leveraging your existing repository lookup method
+            var gallery = await _galleryRepository.GetGalleryByLinkAsync(galleryId);
+            if (gallery == null)
+            {
+                _logger.LogWarning("Resend notification aborted. Gallery metadata for {GalleryId} not found.", galleryId);
+                return false;
+            }
+
+            // 2. Resolve the active production or local domain
+            string baseUrl = _configuration["FrontendBaseUrl"] ?? "https://localhost:7111";
+            baseUrl = baseUrl.TrimEnd('/');
+
+            // 3. Assemble the notification payload matching your background worker pattern
+            var emailNotification = new GalleryNotificationDto
+            {
+                CustomerEmail = gallery.CustomerEmail,
+                EventName = gallery.EventName,
+                AccessPin = gallery.AccessPin,
+                ShareUrl = $"{baseUrl}/view/{galleryId}"
+            };
+
+            try
+            {
+                _logger.LogInformation("Service layer re-dispatching notification mail for gallery: {GalleryId}", galleryId);
+                await _emailService.SendGalleryAccessEmailAsync(emailNotification);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to complete email transmission for gallery {GalleryId} in service layer.", galleryId);
+                throw;
+            }
+        }
     }
 }

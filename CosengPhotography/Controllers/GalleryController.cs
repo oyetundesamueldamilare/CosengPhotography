@@ -160,5 +160,19 @@ namespace CosengPhotography.Controllers
                 return StatusCode(500, new { Message = "An internal error occurred." });
             }
         }
+
+        [HttpPost("{id:guid}/resend-notification")]
+        public async Task<IActionResult> ResendGalleryNotification(Guid id)
+        {
+            // The controller speaks strictly to the service layer wrapper
+            var isSuccess = await _galleryService.ResendGalleryNotificationAsync(id);
+
+            if (!isSuccess)
+            {
+                return NotFound(new { Message = "Gallery records could not be resolved." });
+            }
+
+            return Ok(new { Message = "Gallery notification email resent successfully." });
+        }
     }
 }
