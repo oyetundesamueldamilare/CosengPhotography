@@ -9,6 +9,8 @@ namespace CosengPhotography.Interfaces
         Task DeleteGalleryAsync(Guid galleryId, string photographerId, bool isAdmin);
         Task<GalleryDto?> GetGalleryByLinkAsync(Guid shareId);
         Task<string> GetDownloadLinkAsync(int photoId);
+
+        Task<bool> ResendGalleryNotificationAsync(Guid galleryId);
         Task<List<GalleryDto>> GetAllGalleriesAsync(string photographerId, bool isAdmin);
 
         Task<(Stream FileStream, string FileName)> GetPhotoStreamAsync(int photoId);

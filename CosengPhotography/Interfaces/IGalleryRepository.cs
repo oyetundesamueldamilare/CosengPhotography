@@ -12,7 +12,8 @@ namespace CosengPhotography.Interfaces
             Task<GalleryDto?> GetGalleryByLinkAsync(Guid shareId);
             Task<string> GetDownloadLinkAsync(int photoId);
         Task<(Stream FileStream, string FileName)> GetPhotoStreamAsync(int photoId);
-        }
+        
+    }
     
     
 }

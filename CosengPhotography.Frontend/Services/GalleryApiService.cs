@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
@@ -37,31 +38,6 @@ namespace CosengPhotography.Frontend.Services
             return result;
         }
 
-        //public async Task<FrontendAuthResult> RegisterAsync(RegisterDto dto)
-        //{
-        //    var response = await _http.PostAsJsonAsync("api/auth/register", dto);
-        //    return await HandleAuthResponseAsync(response);
-        //}
-
-        //// =========================================================================
-        //// DATA HISTORY & SPACE PROVISIONING
-        //// =========================================================================
-        public async Task<List<GalleryDto>> GetAllGalleriesAsync()
-        {
-            // Apply authorization headers right before firing the request
-            AttachAuthorizationHeader();
-
-            var response = await _http.GetAsync("api/gallery");
-
-            if (response.IsSuccessStatusCode)
-            {
-                return await response.Content.ReadFromJsonAsync<List<GalleryDto>>()
-                       ?? new List<GalleryDto>();
-            }
-
-            var error = await response.Content.ReadAsStringAsync();
-            throw new Exception($"[Route Error] Server responded with code {(int)response.StatusCode}: {error}");
-        }
         public async Task<FrontendAuthResult> RegisterAsync(RegisterDto dto)
         {
             // Now sending the full payload including the selected role string directly to the BE
@@ -79,6 +55,26 @@ namespace CosengPhotography.Frontend.Services
                 IsSuccess = false,
                 ErrorMessage = string.IsNullOrWhiteSpace(error) ? $"Server Error Code: {(int)response.StatusCode}" : error
             };
+        }
+
+        // =========================================================================
+        // DATA HISTORY & SPACE PROVISIONING
+        // =========================================================================
+        public async Task<List<GalleryDto>> GetAllGalleriesAsync()
+        {
+            // Apply authorization headers right before firing the request
+            AttachAuthorizationHeader();
+
+            var response = await _http.GetAsync("api/gallery");
+
+            if (response.IsSuccessStatusCode)
+            {
+                return await response.Content.ReadFromJsonAsync<List<GalleryDto>>()
+                       ?? new List<GalleryDto>();
+            }
+
+            var error = await response.Content.ReadAsStringAsync();
+            throw new Exception($"[Route Error] Server responded with code {(int)response.StatusCode}: {error}");
         }
 
         public async Task<GalleryDto> CreateGalleryAsync(GalleryCreateDto dto)
@@ -129,6 +125,26 @@ namespace CosengPhotography.Frontend.Services
             }
         }
 
+        // =========================================================================
+        // NEW FEATURE: MANUAL NOTIFICATION RESEND PIPELINE
+        // =========================================================================
+        /// <summary>
+        /// Requests the backend to instantly regenerate and re-dispatch the access email for a specific gallery.
+        /// </summary>
+        public async Task<bool> ResendGalleryEmailAsync(Guid galleryId)
+        {
+            // Ensures the request maps your photographer's active authentication token identity
+            AttachAuthorizationHeader();
+
+            // Matches route: POST api/gallery/{id}/resend-notification
+            var response = await _http.PostAsync($"api/gallery/{galleryId}/resend-notification", null);
+
+            return response.IsSuccessStatusCode;
+        }
+
+        // =========================================================================
+        // PUBLIC CONTENT RETRIEVAL PIPELINES                        maekns
+        // =========================================================================
         public async Task<GalleryDto> GetGalleryByIdAsync(Guid shareId)
         {
             // Public endpoint doesn't require token context mapping
@@ -146,9 +162,6 @@ namespace CosengPhotography.Frontend.Services
 
         public async Task<Stream> DownloadPhotoAsync(Guid photoId)
         {
-            // If your download route requires a logged-in user, uncomment this line:
-            // AttachAuthorizationHeader();
-
             // Calls your backend controller endpoint
             var response = await _http.GetAsync($"api/gallery/download/{photoId}");
 
@@ -191,5 +204,4 @@ namespace CosengPhotography.Frontend.Services
 
         private class LoginResponse { public string Token { get; set; } = string.Empty; }
     }
-
 }
