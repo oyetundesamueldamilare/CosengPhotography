@@ -112,7 +112,7 @@ namespace CosengPhotography.Frontend.Services
             using var content = new MultipartFormDataContent();
             foreach (var file in files)
             {
-                var fileContent = new StreamContent(file.OpenReadStream(maxAllowedSize: 1024 * 1024 * 15));
+                var fileContent = new StreamContent(file.OpenReadStream(maxAllowedSize: 1024 * 1024 * 100));
                 fileContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(file.ContentType);
                 content.Add(fileContent, "files", file.Name);
             }
