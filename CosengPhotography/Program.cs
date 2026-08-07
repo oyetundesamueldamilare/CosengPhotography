@@ -157,7 +157,7 @@ builder.Services.AddCors(options =>
         else
         {
             // Same-origin deployments handle this seamlessly, but we target the live domain to be pristine
-            policy.WithOrigins("https://cosengphotography.onrender.com")
+            policy.WithOrigins("https://photography.coseng.co.uk", "https://cosengphotography.onrender.com")
                   .AllowAnyMethod()
                   .AllowAnyHeader();
         }
